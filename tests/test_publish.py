@@ -1,4 +1,5 @@
 import os
+import random
 import tempfile
 import unittest
 from datetime import date
@@ -54,10 +55,10 @@ class FakeDrive:
         return dest
 
 
-def state():
+def state(n_clips=5):
     clips = [{"number": n, "title": f"Clip {n}", "drive_id": f"c{n}",
               "text": {"instagram": "ig text", "facebook": "fb", "youtube_title": "YT #shorts",
-                       "youtube_description": "desc", "tiktok": "tt"}} for n in (1, 2, 3, 4, 5)]
+                       "youtube_description": "desc", "tiktok": "tt"}} for n in range(1, n_clips + 1)]
     return {"videos": {"v1": {"status": "done", "episode": 52, "name": "TRE Ep52-1.mp4", "clip_list": clips},
                        "v0": {"status": "done", "episode": 51, "name": "old.mp4",
                               "clip_list": [{"number": 1, "title": "old", "drive_id": "old1", "text": {}}]}}}
@@ -77,7 +78,7 @@ class PublishTests(unittest.TestCase):
     def run_once(self, s, mode, drive, today=date(2026, 11, 4)):
         os.environ["POSTING"] = mode
         http = FakeHTTP()
-        publish.run(drive, s, publish.ContentStudio("k", http), today)
+        publish.run(drive, s, publish.ContentStudio("k", http), today, rng=random.Random(7))
         return http
 
     def test_off_sends_nothing(self):
@@ -91,12 +92,20 @@ class PublishTests(unittest.TestCase):
         http = self.run_once(s, "on", FakeDrive(approved={"c2", "c4", "old1"}))
         posts = s["posting"]["posts"]
         self.assertEqual(sorted(posts), ["c2", "c4"])  # Ep51 never posted, unapproved clips wait
-        self.assertEqual([posts["c2"]["day"], posts["c4"]["day"]], ["2026-11-05", "2026-11-06"])
+        # Two a day from tomorrow: clip 1 and clip 2 of the 5th.
+        self.assertEqual([(posts[k]["day"], posts[k]["slot"]) for k in ("c2", "c4")],
+                         [("2026-11-05", 1), ("2026-11-05", 2)])
         self.assertEqual(set(posts["c2"]["ids"]), set(publish.PLATFORMS))
         self.assertEqual(s["posting"]["approval_until"], "2026-11-18")
         sent = [kw["json"] for m, u, kw in http.calls if u.endswith("/posts")]
         self.assertEqual(len(sent), 8)
-        self.assertEqual(sent[0]["scheduling"], {"publish_type": "scheduled", "scheduled_at": "2026-11-05 18:00:00"})
+        self.assertEqual(sent[0]["scheduling"]["publish_type"], "scheduled")
+        for k in ("c2", "c4"):
+            for platform, hhmm in posts[k]["times"].items():
+                base = config.SLOT_TIMES[platform][posts[k]["slot"] - 1]
+                to_min = lambda x: int(x[:2]) * 60 + int(x[3:])  # noqa: E731
+                self.assertLessEqual(abs(to_min(hhmm) - to_min(base)), config.POST_JITTER_MINUTES)
+        self.assertIn(f"2026-11-05 {posts['c2']['times']['instagram']}:00", [j["scheduling"]["scheduled_at"] for j in sent])
         yt = [j for j in sent if j["accounts"] == ["yt1"]][0]
         self.assertEqual(yt["content"]["text"], "YT #shorts\n\ndesc")
         # Run again the same day: nothing new is sent.
@@ -108,7 +117,26 @@ class PublishTests(unittest.TestCase):
         s["posting"] = {"approval_until": "2026-11-01", "posts": {}}
         self.run_once(s, "on", FakeDrive(skipped={"c1"}))
         posts = s["posting"]["posts"]
-        self.assertEqual(sorted(posts), ["c2", "c3", "c4"])  # c1 skipped, c5 beyond 3 days ahead
+        self.assertEqual(sorted(posts), ["c2", "c3", "c4", "c5"])  # c1 skipped
+
+    def test_two_a_day_up_to_days_ahead(self):
+        s = state(n_clips=10)
+        s["posting"] = {"approval_until": "2026-11-01", "posts": {}}
+        self.run_once(s, "on", FakeDrive())
+        posts = s["posting"]["posts"]
+        # 3 days ahead x 2 a day = 6 handed over; the rest wait for later runs.
+        self.assertEqual(sorted((v["day"], v["slot"]) for v in posts.values()),
+                         [("2026-11-05", 1), ("2026-11-05", 2), ("2026-11-06", 1), ("2026-11-06", 2),
+                          ("2026-11-07", 1), ("2026-11-07", 2)])
+        # Next day: one more day opens up, carrying on after the last slot.
+        self.run_once(s, "on", FakeDrive(), today=date(2026, 11, 5))
+        self.assertEqual(sorted(v["day"] for v in posts.values())[-2:], ["2026-11-08", "2026-11-08"])
+
+    def test_pick_time_stays_in_window_and_varies(self):
+        rng = random.Random(1)
+        seen = {publish.pick_time("youtube", 2, rng) for _ in range(50)}
+        self.assertGreater(len(seen), 10)
+        self.assertTrue(all("15:30" <= x <= "16:30" for x in seen))
 
     def test_drafts_kept_apart(self):
         s = state()
