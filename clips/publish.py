@@ -109,19 +109,28 @@ class ContentStudio:
                           f"CONTENTSTUDIO_ACCOUNT_{platform.upper()} in ~/.rippleclips-env")
         return found[0]["id"]
 
-    def upload_video(self, path: Path) -> str:
+    def upload_video(self, path: Path) -> dict:
+        """Upload to the media library. Returns {"id", "url"}; the id is deleted again once the posts are out."""
         with open(path, "rb") as fh:
             body = self._call("POST", f"/workspaces/{self.workspace_id()}/media",
                               files={"file": (path.name, fh, "video/mp4")})
-        url = (body.get("data") or {}).get("url")
-        if not url:
-            raise CSError("ContentStudio did not return a link for the uploaded video")
-        return url
+        data = body.get("data") or {}
+        if not data.get("url") and not (data.get("id") or data.get("_id")):
+            raise CSError("ContentStudio did not return the uploaded video")
+        return {"id": str(data.get("id") or data.get("_id") or ""), "url": data.get("url", "")}
 
-    def create_post(self, account: str, platform: str, text: str, video_url: str, when: datetime | None, draft: bool,
-                    post_type: str | None = None) -> str:
+    def delete_media(self, media_id: str) -> None:
+        self._call("DELETE", f"/workspaces/{self.workspace_id()}/media/{media_id}")
+
+    def create_post(self, account: str, platform: str, text: str, video: dict | str, when: datetime | None,
+                    draft: bool, post_type: str | None = None, title: str = "") -> str:
+        """video is {"id", "url"} from upload_video, or a plain link."""
+        if isinstance(video, dict):
+            media = {"media_ids": [video["id"]]} if video.get("id") else {"video": video["url"]}
+        else:
+            media = {"video": video}
         payload = {
-            "content": {"text": text, "media": {"video": video_url}},
+            "content": {"text": text, "media": media},
             "accounts": [account],
             "post_type": post_type or POST_TYPES.get(platform, "feed"),
             "scheduling": {"publish_type": "draft"} if draft or when is None
@@ -129,15 +138,49 @@ class ContentStudio:
         }
         if draft and when is not None:
             payload["scheduling"]["scheduled_at"] = when.strftime("%Y-%m-%d %H:%M:%S")
+        if platform == "youtube":
+            payload["youtube_options"] = {"title": youtube_title(title or text), "privacy_status": "public",
+                                          "made_for_kids": False}
         body = self._call("POST", f"/workspaces/{self.workspace_id()}/posts", json=payload)
         data = body.get("data") or {}
         return str(data.get("id") or data.get("_id") or "")
 
 
+def youtube_title(text: str) -> str:
+    """YouTube titles are at most 100 characters: the first line, cut at a word if needed."""
+    first = (text or "").strip().splitlines()[0] if (text or "").strip() else "The Ripple Effect"
+    if len(first) <= 100:
+        return first
+    return first[:99].rsplit(" ", 1)[0].rstrip(" ,.-") + "…"
+
+
+def schedule_delete(s: dict, media: dict, day: date) -> None:
+    """Remember to delete an uploaded video from ContentStudio's library a few days after it goes out."""
+    if isinstance(media, dict) and media.get("id"):
+        s.setdefault("cs_media", []).append({"id": media["id"],
+                                             "after": (day + timedelta(days=config.CS_DELETE_AFTER_DAYS)).isoformat()})
+
+
+def clean_media(s: dict, cs: "ContentStudio", today: date) -> None:
+    """Delete uploads whose posts went out, so the 42 GB library never fills up again."""
+    keep = []
+    for m in s.get("cs_media", []):
+        if date.fromisoformat(m["after"]) > today:
+            keep.append(m)
+            continue
+        try:
+            cs.delete_media(m["id"])
+            log.info("Deleted a posted video from ContentStudio's media library")
+        except Exception as e:  # noqa: BLE001 - e.g. a post still waiting: try again tomorrow
+            log.warning("Could not delete media from ContentStudio yet: %s", e)
+            keep.append(m)
+    s["cs_media"] = keep
+
+
 def platform_text(clip: dict, platform: str) -> str:
     t = clip.get("text", {})
     if platform == "youtube":
-        return "\n\n".join(x for x in (t.get("youtube_title", ""), t.get("youtube_description", "")) if x)
+        return t.get("youtube_description", "") or t.get("youtube_title", "")  # the title goes in youtube_options
     return t.get(platform, "")
 
 
@@ -219,15 +262,10 @@ def run(drive, s: dict, cs: ContentStudio | None = None, today: date | None = No
         accounts = accounts if accounts is not None else cs.accounts()
         video = None
         try:
-            if config.CS_VIDEO == "upload":
-                work = config.WORK_DIR / "posting"
-                work.mkdir(parents=True, exist_ok=True)
-                video = drive.download(key, work / f"{key}.mp4")
-                url = cs.upload_video(video)
-            else:
-                url = drive.public_link(key)
+            url = get_media(drive, cs, s, rec, key, day)
             rec = posts.setdefault(key, {"day": day.isoformat(), "slot": slot, "title": clip["title"],
                                          "episode": clip["episode"], "mode": mode, "ids": {}, "errors": {}})
+            rec["media"] = url
             times = rec.setdefault("times", {})
             last = max(last, (day, slot))
             for platform in PLATFORMS:
@@ -237,7 +275,8 @@ def run(drive, s: dict, cs: ContentStudio | None = None, today: date | None = No
                     acct = cs.account_for(platform, accounts)
                     times.setdefault(platform, pick_time(platform, slot, rng))
                     rec["ids"][platform] = cs.create_post(acct, platform, platform_text(clip, platform), url,
-                                                          post_time(day, times[platform]), draft=mode == "draft") or "ok"
+                                                          post_time(day, times[platform]), draft=mode == "draft",
+                                                          title=clip.get("text", {}).get("youtube_title", "")) or "ok"
                     rec["errors"].pop(platform, None)
                 except Exception as e:  # noqa: BLE001 - try this platform again next run
                     rec["errors"][platform] = str(e)[:300]
@@ -247,6 +286,24 @@ def run(drive, s: dict, cs: ContentStudio | None = None, today: date | None = No
         finally:
             if video:
                 video.unlink(missing_ok=True)
+    clean_media(s, cs, today)
+
+
+def get_media(drive, cs: ContentStudio, s: dict, rec: dict, file_id: str, day: date):
+    """The video as ContentStudio should get it: uploaded once (and deleted after it goes out) or as a Drive link."""
+    if rec.get("media"):
+        return rec["media"]  # a retry for one platform reuses the first upload
+    if config.CS_VIDEO != "upload":
+        return drive.public_link(file_id)
+    work = config.WORK_DIR / "posting"
+    work.mkdir(parents=True, exist_ok=True)
+    video = drive.download(file_id, work / f"{file_id}.mp4")
+    try:
+        media = cs.upload_video(video)
+    finally:
+        video.unlink(missing_ok=True)
+    schedule_delete(s, media, day)
+    return media
 
 
 def check() -> None:

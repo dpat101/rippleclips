@@ -71,9 +71,11 @@ POST_FROM_EPISODE = int(os.environ.get("POST_FROM_EPISODE", "52"))  # Dave, 3 No
 RELEASES = os.environ.get("RELEASES", "1") == "1"
 RELEASE_DAY = int(os.environ.get("RELEASE_DAY", "1"))  # Tuesday
 RELEASE_TIME = os.environ.get("RELEASE_TIME", "19:00")
-# How a clip reaches ContentStudio: "link" (a Drive link, nothing stored in ContentStudio's media library, whose
-# 42 GB was full on 4 Nov 2026) or "upload" (the file is uploaded to the media library).
-CS_VIDEO = os.environ.get("CONTENTSTUDIO_VIDEO", "link")
+# How a video reaches ContentStudio: "upload" (into its media library, and deleted again CS_DELETE_AFTER_DAYS
+# after the post's day, so the 42 GB library, full on 4 Nov 2026, never fills up) or "link" (a Drive link;
+# ContentStudio still copies it into the library, but then we don't know its id to delete it).
+CS_VIDEO = os.environ.get("CONTENTSTUDIO_VIDEO", "upload")
+CS_DELETE_AFTER_DAYS = 2
 CS_TIMES_IN_UTC = os.environ.get("CONTENTSTUDIO_TIMES_IN_UTC", "0") == "1"
 
 # Transcription (runs on the droplet, free)

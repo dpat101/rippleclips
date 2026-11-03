@@ -27,12 +27,15 @@ The plan is the Claude Doc "Ripple Effect clips: hands-off plan" in the project.
   platform with that platform's caption. `POSTING` in the env file: off (default) / draft (ContentStudio drafts
   only) / on. First 2 weeks after `on`: only clips Dave drags into `<episode>/Clips/Approved`; after that, all
   except `Clips/Don't post`. ContentStudio's post_type values and timezone are not documented: check with drafts
-  first (`POST_TYPES`, `CONTENTSTUDIO_TIMES_IN_UTC`). `--contentstudio-check` lists workspaces and accounts. Clips are handed over as a Drive
-  link (the file is made viewable by anyone with the link), not uploaded, because ContentStudio's 42 GB media
-  storage was full on 4 November 2026 and its API cannot delete media; `CONTENTSTUDIO_VIDEO=upload` uploads instead.
+  first (`POST_TYPES`, `CONTENTSTUDIO_TIMES_IN_UTC`). `--contentstudio-check` lists workspaces and accounts. Each clip is one
+  upload to ContentStudio's media library, used for every platform, and deleted from the library 2 days after its post
+  day (`CS_DELETE_AFTER_DAYS`, `DELETE /media/{id}`), so the 42 GB library (full on 4 November 2026) never fills again.
+  `CONTENTSTUDIO_VIDEO=link` hands over a Drive link instead (ContentStudio still copies it into the library).
+  YouTube's title goes in `youtube_options.title` (100 characters at most); the API spec is
+  https://api-prod.contentstudio.io/api-docs.json.
 - **Full episodes go out by themselves** (Dave, 4 November 2026; `clips/release.py`): one a week, oldest first, on
   `RELEASE_DAY` at `RELEASE_TIME` (Tuesday 7pm Brisbane) moved by up to 30 minutes, no approval. YouTube and Facebook
-  get the video through ContentStudio (Facebook full videos are monetised); Podbean gets an MP3 through its API
+  get the video through ContentStudio (Facebook full videos are monetised; sent as post type `video`, because `feed` stops at 20 minutes; `FACEBOOK_FULL_POST_TYPE` changes it); Podbean gets an MP3 through its API
   (`PODBEAN_CLIENT_ID` / `PODBEAN_CLIENT_SECRET`, client credentials) and passes it to Apple and the other apps.
   Spotify stays Dave's manual video upload: Podbean only sends audio to Spotify, and he has his own Spotify show, so
   Spotify must never be switched on in Podbean (it would make a second show). Same `POSTING` switch as the clips.

@@ -149,8 +149,8 @@ Then, in the same settings file:
   own times (Brisbane): Facebook 8am and 12pm, YouTube 11am and 4pm, Instagram 7am and 6pm, TikTok 1pm and 8pm,
   each moved by a random number of minutes up to half an hour either way (`SLOT_TIMES` in `clips/config.py`). For the first 2 weeks only clips you drag into `Clips/Approved` in an episode folder are posted; after
   that every clip is, unless you drag it into `Clips/Don't post`.
-- Clips reach ContentStudio as a Google Drive link (anyone with the link can view that one clip), so they don't use
-  ContentStudio's media storage. `CONTENTSTUDIO_VIDEO=upload` uploads the file to the media library instead.
+- Each clip is uploaded to ContentStudio's media library once, used for every platform, and deleted from the library
+  2 days after its post day, so the storage doesn't fill up again. `CONTENTSTUDIO_VIDEO=link` sends a Drive link instead.
 - Full episodes: one a week (Tuesday about 7pm Brisbane, `RELEASE_DAY` / `RELEASE_TIME`) to YouTube and Facebook
   through ContentStudio, and as an MP3 to Podbean. Podbean needs `PODBEAN_CLIENT_ID` and `PODBEAN_CLIENT_SECRET`
   (from developers.podbean.com, "Register a new app"); check with `--podbean-check`. `RELEASES=0` stops full
