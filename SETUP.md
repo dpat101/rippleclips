@@ -99,7 +99,7 @@ Go to Ripple clips** on the warning screen, and allow Drive access. PowerShell t
 sudo -u clips -H bash -c 'cd ~/rippleclips && .venv/bin/python -m clips.run'
 ```
 
-This does TRE Ep51 and TRE Ep52 (it ignores older episodes; see `START_EPISODE`). The first run also
+This does TRE Ep52 and later (it ignores older episodes; see `START_EPISODE`). The first run also
 downloads the speech-to-text model. Turning speech into text takes roughly half the length of the video (an hour-long video about 30 to 40 minutes); it prints a progress line every 5 minutes of audio. When it ends, each episode folder in Drive has
 a **Clips** folder with the clips, a `.txt` with each clip's descriptions, and a `clips.json` list.
 
