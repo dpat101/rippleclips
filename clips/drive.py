@@ -137,6 +137,15 @@ class Drive:
             media_body=media, fields="id, webViewLink", supportsAllDrives=True,
         ).execute()
 
+    def public_link(self, file_id: str) -> str:
+        """Let anyone with the link view the file, and return a direct download link to it.
+
+        Used to hand a clip to ContentStudio by link, so it does not fill ContentStudio's media storage.
+        """
+        self.svc.permissions().create(fileId=file_id, body={"type": "anyone", "role": "reader"},
+                                      fields="id", supportsAllDrives=True).execute()
+        return f"https://drive.usercontent.google.com/download?id={file_id}&export=download&confirm=t"
+
 
 def now_utc() -> datetime:
     return datetime.now(timezone.utc)

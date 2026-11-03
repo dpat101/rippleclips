@@ -149,4 +149,6 @@ Then, in the same settings file:
   own times (Brisbane): Facebook 8am and 12pm, YouTube 11am and 4pm, Instagram 7am and 6pm, TikTok 1pm and 8pm,
   each moved by a random number of minutes up to half an hour either way (`SLOT_TIMES` in `clips/config.py`). For the first 2 weeks only clips you drag into `Clips/Approved` in an episode folder are posted; after
   that every clip is, unless you drag it into `Clips/Don't post`.
+- Clips reach ContentStudio as a Google Drive link (anyone with the link can view that one clip), so they don't use
+  ContentStudio's media storage. `CONTENTSTUDIO_VIDEO=upload` uploads the file to the media library instead.
 - `POSTING=off` (or no line) stops everything. Posts already handed over can be deleted in ContentStudio.

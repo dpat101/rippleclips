@@ -27,7 +27,9 @@ The plan is the Claude Doc "Ripple Effect clips: hands-off plan" in the project.
   platform with that platform's caption. `POSTING` in the env file: off (default) / draft (ContentStudio drafts
   only) / on. First 2 weeks after `on`: only clips Dave drags into `<episode>/Clips/Approved`; after that, all
   except `Clips/Don't post`. ContentStudio's post_type values and timezone are not documented: check with drafts
-  first (`POST_TYPES`, `CONTENTSTUDIO_TIMES_IN_UTC`). `--contentstudio-check` lists workspaces and accounts.
+  first (`POST_TYPES`, `CONTENTSTUDIO_TIMES_IN_UTC`). `--contentstudio-check` lists workspaces and accounts. Clips are handed over as a Drive
+  link (the file is made viewable by anyone with the link), not uploaded, because ContentStudio's 42 GB media
+  storage was full on 4 November 2026 and its API cannot delete media; `CONTENTSTUDIO_VIDEO=upload` uploads instead.
 - What has been done is in `~/rippleclips-state.json`; a video that fails is tried again at the next daily run, at most 3 times.
 
 ## Stages

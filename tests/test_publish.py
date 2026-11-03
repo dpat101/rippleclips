@@ -50,6 +50,9 @@ class FakeDrive:
         ids = self.approved if folder_id == publish.APPROVED_FOLDER else self.skipped if folder_id == publish.SKIP_FOLDER else set()
         return [SimpleNamespace(id=i) for i in ids]
 
+    def public_link(self, file_id):
+        return f"https://drive/{file_id}"
+
     def download(self, file_id, dest):
         dest.write_bytes(b"video")
         return dest
@@ -145,6 +148,20 @@ class PublishTests(unittest.TestCase):
         self.assertNotIn("c1", s["posting"].get("posts", {}))
         sent = [kw["json"] for m, u, kw in http.calls if u.endswith("/posts")]
         self.assertEqual(sent[0]["scheduling"]["publish_type"], "draft")
+
+    def test_link_by_default_upload_when_asked(self):
+        s = state()
+        http = self.run_once(s, "draft", FakeDrive(approved={"c1"}))
+        self.assertFalse([u for m, u, kw in http.calls if u.endswith("/media")])
+        sent = [kw["json"] for m, u, kw in http.calls if u.endswith("/posts")]
+        self.assertEqual(sent[0]["content"]["media"]["video"], "https://drive/c1")
+        saved = config.CS_VIDEO
+        config.CS_VIDEO = "upload"
+        try:
+            http = self.run_once(state(), "draft", FakeDrive(approved={"c1"}))
+        finally:
+            config.CS_VIDEO = saved
+        self.assertTrue([u for m, u, kw in http.calls if u.endswith("/media")])
 
     def test_error_message_never_has_key(self):
         cs = publish.ContentStudio("secret-key", FakeHTTP())
