@@ -66,6 +66,9 @@ POST_JITTER_MINUTES = 30
 POST_DAYS_AHEAD = int(os.environ.get("POST_DAYS_AHEAD", "3"))  # hand clips over at most this far ahead
 APPROVAL_DAYS = 14  # first 2 weeks: only clips Dave drags into Approved are posted
 POST_FROM_EPISODE = int(os.environ.get("POST_FROM_EPISODE", "52"))  # Dave, 3 Nov 2026: post from TRE Ep52
+# How a clip reaches ContentStudio: "link" (a Drive link, nothing stored in ContentStudio's media library, whose
+# 42 GB was full on 4 Nov 2026) or "upload" (the file is uploaded to the media library).
+CS_VIDEO = os.environ.get("CONTENTSTUDIO_VIDEO", "link")
 CS_TIMES_IN_UTC = os.environ.get("CONTENTSTUDIO_TIMES_IN_UTC", "0") == "1"
 
 # Transcription (runs on the droplet, free)

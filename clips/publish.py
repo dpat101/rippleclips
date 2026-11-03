@@ -216,11 +216,15 @@ def run(drive, s: dict, cs: ContentStudio | None = None, today: date | None = No
             if (day - today).days > config.POST_DAYS_AHEAD:
                 break
         accounts = accounts if accounts is not None else cs.accounts()
-        work = config.WORK_DIR / "posting"
-        work.mkdir(parents=True, exist_ok=True)
-        video = drive.download(key, work / f"{key}.mp4")
+        video = None
         try:
-            url = cs.upload_video(video)
+            if config.CS_VIDEO == "upload":
+                work = config.WORK_DIR / "posting"
+                work.mkdir(parents=True, exist_ok=True)
+                video = drive.download(key, work / f"{key}.mp4")
+                url = cs.upload_video(video)
+            else:
+                url = drive.public_link(key)
             rec = posts.setdefault(key, {"day": day.isoformat(), "slot": slot, "title": clip["title"],
                                          "episode": clip["episode"], "mode": mode, "ids": {}, "errors": {}})
             times = rec.setdefault("times", {})
@@ -240,7 +244,8 @@ def run(drive, s: dict, cs: ContentStudio | None = None, today: date | None = No
             log.info("Handed %r to ContentStudio for %s, clip %d of the day (%s): %s", clip["title"], day.isoformat(),
                      slot, mode, ", ".join(f"{k} {v}" for k, v in sorted(times.items())))
         finally:
-            video.unlink(missing_ok=True)
+            if video:
+                video.unlink(missing_ok=True)
 
 
 def check() -> None:
