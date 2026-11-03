@@ -9,7 +9,7 @@ The plan is the Claude Doc "Ripple Effect clips: hands-off plan" in the project.
 
 - Episodes land in Google Drive: folder "The Ripple Effect", subfolders `TRE Ep51`, `TRE Ep52`, ... Each
   subfolder can hold several short videos recorded the same day. Dave owns the folder.
-- `clips/run.py` runs hourly from cron on the droplet `rippleclips` (134.199.155.143, user `clips`). For each
+- `clips/run.py` runs once a day from cron, at 3am Brisbane (17:00 UTC; Dave, 3 November 2026: new episodes come every few days) on the droplet `rippleclips` (134.199.155.143, user `clips`). For each
   new video in a settled episode folder (nothing changed for 2 hours): download → transcribe on the droplet
   (`faster-whisper`, free) → Claude (`claude-opus-5-5`) picks the funny moments and writes descriptions for each
   platform (`clips/pick.py`, style in `style/examples.md`) → ffmpeg cuts 1080x1920 with face-based framing
@@ -21,7 +21,7 @@ The plan is the Claude Doc "Ripple Effect clips: hands-off plan" in the project.
   music from a free no-copyright site) goes in front and again at the end (or `Outro.mp4` there, if Dave adds one). Saved with a title and Spotify/YouTube descriptions to
   `<episode>/Full episode`. `FULL_EPISODES=0` in the env file switches it off.
 - Transcripts are kept in `~/rippleclips-work/transcripts/` so a video is never transcribed twice.
-- What has been done is in `~/rippleclips-state.json`; a video that fails is tried again next hour, at most 3 times.
+- What has been done is in `~/rippleclips-state.json`; a video that fails is tried again at the next daily run, at most 3 times.
 
 ## Stages
 
@@ -35,7 +35,7 @@ The plan is the Claude Doc "Ripple Effect clips: hands-off plan" in the project.
 
 ## Rules
 
-- Never commit to `main`; every change is a pull request Dave merges. The droplet pulls `main` hourly, so
+- Never commit to `main`; every change is a pull request Dave merges. The droplet pulls `main` at each daily run, so
   merging deploys.
 - Secrets live only on the droplet: `~/.rippleclips-env` (Anthropic key, later ContentStudio key),
   `~/.rippleclips-google-client.json`, `~/.rippleclips-google-token.json` (all chmod 600). Never commit,

@@ -112,7 +112,7 @@ Check what was done:
 sudo -u clips -H bash -c 'cd ~/rippleclips && .venv/bin/python -m clips.run --status'
 ```
 
-## 8. Switch on the hourly run (Droplet)
+## 8. Switch on the daily run (Droplet)
 
 Only after you are happy with the clips from step 7:
 
@@ -120,7 +120,7 @@ Only after you are happy with the clips from step 7:
 bash /home/clips/rippleclips/deploy/install.sh --cron
 ```
 
-From then on it runs at 7 minutes past every hour, picks up code merged to `main` by itself, and handles each
+From then on it runs every day at 3am Brisbane time, picks up code merged to `main` by itself, and handles each
 new `TRE Ep..` folder once nothing in it has changed for 2 hours.
 
 Logs: `tail -50 /home/clips/rippleclips.log`
