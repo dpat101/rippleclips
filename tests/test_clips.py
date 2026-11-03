@@ -159,9 +159,10 @@ class EpisodeTests(unittest.TestCase):
             subprocess.run(["ffmpeg", "-y", "-loglevel", "error", "-f", "lavfi", "-i", "testsrc2=size=640x480:rate=30",
                             "-t", "2", "-c:v", "libx264", str(silent)], check=True)
             info = probe(src)
-            for name, ip, want in (("a", intro, 3 + 8), ("b", silent, 2 + 8), ("c", None, 8)):
+            for name, ip, op, want in (("a", intro, None, 3 + 8), ("b", silent, None, 2 + 8), ("c", None, None, 8),
+                                       ("d", intro, silent, 3 + 8 + 2), ("e", None, intro, 8 + 3), ("f", intro, intro, 3 + 8 + 3)):
                 out = d / f"{name}.mp4"
-                render(src, info, ip, 2.0, 10.0, out)
+                render(src, info, ip, 2.0, 10.0, out, op)
                 got = probe(out)
                 self.assertEqual((got.width, got.height), (1280, 720))
                 self.assertAlmostEqual(got.duration, want, delta=0.3)

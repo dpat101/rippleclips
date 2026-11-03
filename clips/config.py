@@ -50,6 +50,7 @@ OUT_WIDTH, OUT_HEIGHT = 1080, 1920
 FULL_EPISODES = os.environ.get("FULL_EPISODES", "1") == "1"
 FULL_EPISODE_FOLDER_NAME = "Full episode"
 INTRO_NAME = "Intro"
+OUTRO_NAME = "Outro"  # a video called Outro in the main folder goes at the end; without one, the intro does
 
 # Transcription (runs on the droplet, free)
 WHISPER_MODEL = os.environ.get("WHISPER_MODEL", "small.en")

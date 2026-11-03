@@ -18,7 +18,7 @@ The plan is the Claude Doc "Ripple Effect clips: hands-off plan" in the project.
 - Each video also becomes a **full episode** for Spotify and YouTube (Dave, 3 November 2026; `clips/episode.py`):
   Claude judges where the real conversation starts and ends (the warm-up and off-air chatter are cut, at most
   5 minutes each end), the sound is levelled to -16 LUFS, and `Intro.mp4` from the main Drive folder (Dave's own,
-  music from a free no-copyright site) goes in front. Saved with a title and Spotify/YouTube descriptions to
+  music from a free no-copyright site) goes in front and again at the end (or `Outro.mp4` there, if Dave adds one). Saved with a title and Spotify/YouTube descriptions to
   `<episode>/Full episode`. `FULL_EPISODES=0` in the env file switches it off.
 - Transcripts are kept in `~/rippleclips-work/transcripts/` so a video is never transcribed twice.
 - What has been done is in `~/rippleclips-state.json`; a video that fails is tried again next hour, at most 3 times.

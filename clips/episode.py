@@ -2,7 +2,7 @@
 
 Claude reads the transcript and decides where the real conversation starts and ends, and writes the episode's
 title and descriptions for Spotify and YouTube. ffmpeg then puts Intro.mp4 (from the main Drive folder) in front
-of the trimmed episode.
+of the trimmed episode, and Outro.mp4 (if there is one) after it.
 """
 from __future__ import annotations
 
@@ -106,8 +106,9 @@ def has_audio(video: Path) -> bool:
     return bool(json.loads(out).get("streams"))
 
 
-def render(video: Path, info: VideoInfo, intro: Path | None, start: float, end: float, out: Path) -> None:
-    """Intro (if any), then the trimmed episode, at the episode's own size, with the sound levelled."""
+def render(video: Path, info: VideoInfo, intro: Path | None, start: float, end: float, out: Path,
+           outro: Path | None = None) -> None:
+    """Intro (if any), the trimmed episode, then the outro (if any), at the episode's own size, sound levelled."""
     w, h = info.width // 2 * 2, info.height // 2 * 2
     length = end - start
     norm_v = f"scale={w}:{h}:force_original_aspect_ratio=decrease,pad={w}:{h}:(ow-iw)/2:(oh-ih)/2,setsar=1,fps=30,format=yuv420p"
@@ -115,33 +116,42 @@ def render(video: Path, info: VideoInfo, intro: Path | None, start: float, end: 
     fade_out = max(0.0, length - 1.5)
     inputs = ["-ss", f"{start:.2f}", "-t", f"{length:.2f}", "-i", str(video)]
     parts = [
-        f"[0:v]{norm_v},fade=t=out:st={fade_out:.2f}:d=1.5[ev]",
-        f"[0:a]{LOUDNESS},{norm_a},afade=t=in:d=0.3,afade=t=out:st={fade_out:.2f}:d=1.5[ea]",
+        f"[0:v]{norm_v},fade=t=out:st={fade_out:.2f}:d=1.5[v0]",
+        f"[0:a]{LOUDNESS},{norm_a},afade=t=in:d=0.3,afade=t=out:st={fade_out:.2f}:d=1.5[a0]",
     ]
-    if intro:
-        inputs += ["-i", str(intro)]
-        parts.append(f"[1:v]{norm_v}[iv]")
-        if has_audio(intro):
-            parts.append(f"[1:a]{LOUDNESS},{norm_a}[ia]")
+    order = ["0"]
+    n = 0
+    for role, extra in (("intro", intro), ("outro", outro)):
+        if not extra:
+            continue
+        n += 1
+        inputs += ["-i", str(extra)]
+        parts.append(f"[{n}:v]{norm_v}[v{n}]")
+        if has_audio(extra):
+            parts.append(f"[{n}:a]{LOUDNESS},{norm_a}[a{n}]")
         else:
-            intro_len = probe(intro).duration
-            parts.append(f"anullsrc=r=48000:cl=stereo,atrim=duration={intro_len:.2f},{norm_a}[ia]")
-        parts.append("[iv][ia][ev][ea]concat=n=2:v=1:a=1[v][a]")
+            parts.append(f"anullsrc=r=48000:cl=stereo,atrim=duration={probe(extra).duration:.2f},{norm_a}[a{n}]")
+        if role == "intro":
+            order.insert(0, str(n))
+        else:
+            order.append(str(n))
+    if len(order) > 1:
+        parts.append("".join(f"[v{i}][a{i}]" for i in order) + f"concat=n={len(order)}:v=1:a=1[v][a]")
         maps = ["-map", "[v]", "-map", "[a]"]
     else:
-        maps = ["-map", "[ev]", "-map", "[ea]"]
+        maps = ["-map", "[v0]", "-map", "[a0]"]
     cmd = ["ffmpeg", "-y", "-loglevel", "error", *inputs, "-filter_complex", ";".join(parts), *maps,
            "-c:v", "libx264", "-preset", "faster", "-crf", "21", "-c:a", "aac", "-b:a", "192k",
            "-movflags", "+faststart", str(out)]
     subprocess.run(cmd, check=True)
 
 
-def description_text(plan: EpisodePlan, episode: int, video_name: str, intro: bool) -> str:
+def description_text(plan: EpisodePlan, episode: int, video_name: str, intro: bool, outro: bool = False) -> str:
     t = plan.text
     m = lambda x: f"{int(x // 60)}:{int(x % 60):02d}"  # noqa: E731
     return "\n".join([
         f"TRE Ep{episode}: {t.get('title', '')}",
-        f"From {video_name}: kept {m(plan.start)} to {m(plan.end)}" + (" with the intro in front" if intro else ""),
+        f"From {video_name}: kept {m(plan.start)} to {m(plan.end)}" + (" with the intro in front" if intro else "") + (" and the outro at the end" if outro else ""),
         f"What was cut: {plan.why}",
         "",
         "SPOTIFY / PODCAST TITLE", t.get("title", ""), "",

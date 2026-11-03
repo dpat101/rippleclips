@@ -146,7 +146,8 @@ def do_clips(drive: Drive, s: dict, rec: dict, episode: int, folder, f, video: P
     log.info("DONE TRE Ep%d %s: %d clips saved to Drive", episode, f.name, len(made))
 
 
-def make_episode(video: Path, episode: int, work: Path, intro: Path | None, cache: Path | None = None) -> dict:
+def make_episode(video: Path, episode: int, work: Path, intro: Path | None, cache: Path | None = None,
+                 outro: Path | None = None) -> dict:
     """Trim, level and put the intro in front. Returns the record, with the files in `work`."""
     info = probe(video)
     words = get_words(video, work, cache)
@@ -155,16 +156,16 @@ def make_episode(video: Path, episode: int, work: Path, intro: Path | None, cach
              fmt(info.duration), plan.why)
     stem = safe_name(f"TRE Ep{episode} - {Path(video.name).stem} - full episode", 100)
     out, txt = work / f"{stem}.mp4", work / f"{stem}.txt"
-    render(video, info, intro, plan.start, plan.end, out)
-    txt.write_text(episode_text(plan, episode, video.name, intro is not None), encoding="utf-8")
+    render(video, info, intro, plan.start, plan.end, out, outro)
+    txt.write_text(episode_text(plan, episode, video.name, intro is not None, outro is not None), encoding="utf-8")
     log.info("Claude usage for %s episode: %s", video.name, json.dumps(usage))
-    return {"start": plan.start, "end": plan.end, "why": plan.why, "text": plan.text, "intro": intro is not None,
+    return {"start": plan.start, "end": plan.end, "why": plan.why, "text": plan.text, "intro": intro is not None, "outro": outro is not None,
             "mp4": str(out), "txt": str(txt)}
 
 
 def do_episode(drive: Drive, rec: dict, episode: int, folder, f, video: Path, work: Path, cache: Path,
-               intro: Path | None) -> None:
-    made = make_episode(video, episode, work, intro, cache)
+               intro: Path | None, outro: Path | None = None) -> None:
+    made = make_episode(video, episode, work, intro, cache, outro)
     target = drive.folder(folder.id, config.FULL_EPISODE_FOLDER_NAME)
     up = drive.upload(Path(made["mp4"]), target, "video/mp4")
     drive.upload(Path(made["txt"]), target, "text/plain")
@@ -182,7 +183,8 @@ def fail(rec: dict, what: str, f, e: Exception) -> None:
     log.error("FAILED %s %s (attempt %d): %s\n%s", what, f.name, rec[key], e, traceback.format_exc())
 
 
-def process_drive_video(drive: Drive, s: dict, episode: int, folder, f, intro: Path | None = None) -> None:
+def process_drive_video(drive: Drive, s: dict, episode: int, folder, f, intro: Path | None = None,
+                        outro: Path | None = None) -> None:
     work = config.WORK_DIR / f.id
     work.mkdir(parents=True, exist_ok=True)
     rec = s["videos"].setdefault(f.id, {"name": f.name, "episode": episode})
@@ -198,7 +200,7 @@ def process_drive_video(drive: Drive, s: dict, episode: int, folder, f, intro: P
             st.save(s)
         if needs_episode(s, f.id):
             try:
-                do_episode(drive, rec, episode, folder, f, video, work, cache, intro)
+                do_episode(drive, rec, episode, folder, f, video, work, cache, intro, outro)
             except Exception as e:  # noqa: BLE001
                 fail(rec, "full episode", f, e)
     except Exception as e:  # noqa: BLE001 - the download failed
@@ -208,22 +210,22 @@ def process_drive_video(drive: Drive, s: dict, episode: int, folder, f, intro: P
         shutil.rmtree(work, ignore_errors=True)
 
 
-def get_intro(drive: Drive) -> Path | None:
-    """Intro.mp4 (any video named Intro) from the main Drive folder, downloaded once per version."""
+def get_bookend(drive: Drive, name: str) -> Path | None:
+    """Intro.mp4 or Outro.mp4 (any video with that name) from the main Drive folder, downloaded once per version."""
     if not config.FULL_EPISODES:
         return None
     files = [f for f in drive.children(drive.root_id())
-             if f.mime_type.startswith("video/") and Path(f.name).stem.strip().lower() == config.INTRO_NAME.lower()]
+             if f.mime_type.startswith("video/") and Path(f.name).stem.strip().lower() == name.lower()]
     if not files:
-        log.warning("No %s video in the main folder: full episodes will have no intro", config.INTRO_NAME)
+        log.info("No %s video in the main folder: full episodes will have none", name)
         return None
     f = max(files, key=lambda x: x.modified)
-    dest = config.WORK_DIR / "intro" / f"{f.id}-{int(f.modified.timestamp())}{Path(f.name).suffix or '.mp4'}"
+    dest = config.WORK_DIR / name.lower() / f"{f.id}-{int(f.modified.timestamp())}{Path(f.name).suffix or '.mp4'}"
     if not dest.exists():
         shutil.rmtree(dest.parent, ignore_errors=True)
         dest.parent.mkdir(parents=True, exist_ok=True)
         drive.download(f.id, dest)
-        log.info("downloaded the intro (%s)", f.name)
+        log.info("downloaded %s", f.name)
     return dest
 
 
@@ -232,7 +234,8 @@ def run() -> None:
     drive = Drive()
     s = st.load()
     now = now_utc()
-    intro = None
+    intro = outro = None
+    bookends = False
     for episode, folder in drive.episodes():
         videos = [f for f in drive.children(folder.id) if f.mime_type.startswith("video/")]
         todo = [f for f in videos if needs_clips(s, f.id) or needs_episode(s, f.id)]
@@ -241,10 +244,11 @@ def run() -> None:
         if not is_settled(videos, now, config.SETTLE_HOURS):
             log.info("TRE Ep%d: still uploading, waiting", episode)
             continue
-        if intro is None:
-            intro = get_intro(drive)
+        if not bookends:
+            intro, outro, bookends = get_bookend(drive, config.INTRO_NAME), get_bookend(drive, config.OUTRO_NAME), True
+            outro = outro or intro  # Dave, 3 Nov 2026: with no Outro video, the intro is played at the end too
         for f in sorted(todo, key=lambda x: x.name):
-            process_drive_video(drive, s, episode, folder, f, intro)
+            process_drive_video(drive, s, episode, folder, f, intro, outro)
 
 
 def status() -> None:
