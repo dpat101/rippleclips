@@ -47,4 +47,14 @@ Round two's already lined up, and it's going to hit different.
 Stay tuned 🥊🎙️
 #PodcastLife #StayTuned #MoreToCome #RealConversations #NextEpisode #RealTalk #TheRippleEffectPodcast
 
+---
+
+🚚 "I'd pull over on the motorway, scoff dinner off a plate, kiss the kids goodnight in their baby seats, and hit the road again."
+Sometimes you think you're doing it all for your family, until you look back and realise it cost you the very connection you were working for. 💔
+💭 Who else has been there?
+#TruckingLife #FamilySacrifice #RealTalk #MentalHealth #WorkLifeBalance #RippleEffectPodcast #Fatherhood #StayHungry #NoMoreExcuses #LifeLessons
+
+Pattern that works: open with an emoji and the best line quoted word for word from the clip, then one or two
+lines on why it matters, then a question to the audience to get comments, then the hashtags.
+
 (Always include #TheRippleEffectPodcast. Emojis are welcome, one or two per caption.)
