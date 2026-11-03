@@ -122,6 +122,102 @@ class TranscriptCacheTests(unittest.TestCase):
             self.assertEqual(first, second)
 
 
+class EpisodeTests(unittest.TestCase):
+    def test_snap_trim_limits(self):
+        from clips.episode import snap_trim
+        words = words_every(900)
+        s, e = snap_trim(words, 31.2, 880.0, 900)
+        self.assertTrue(30 <= s <= 31.2)
+        self.assertTrue(880 <= e <= 882)
+        s, e = snap_trim(words, 700, 800, 900)  # never more than 5 minutes off the front
+        self.assertLessEqual(s, 300)
+        self.assertEqual(snap_trim([], 10, 20, 900), (0.0, 900))
+
+    def test_plan_with_fake_claude(self):
+        from clips.episode import plan_episode
+        block = SimpleNamespace(type="tool_use", name="save_episode", input={
+            "start_seconds": 42, "end_seconds": 290, "why": "mic check at the start", "title": "T",
+            "spotify_description": "S", "youtube_title": "Y", "youtube_description": "YD"})
+
+        class Msgs:
+            def create(self, **kw):
+                return SimpleNamespace(content=[block], usage=SimpleNamespace(input_tokens=1, output_tokens=1))
+
+        plan, _ = plan_episode(words_every(300), "a.mp4", 52, 300, client=SimpleNamespace(messages=Msgs()))
+        self.assertTrue(41 <= plan.start <= 42)
+        self.assertEqual(plan.text["title"], "T")
+
+    def test_render_with_and_without_intro_sound(self):
+        from clips.episode import render
+        with tempfile.TemporaryDirectory() as d:
+            d = Path(d)
+            src, intro, silent = d / "src.mp4", d / "intro.mp4", d / "silent.mp4"
+            subprocess.run(["ffmpeg", "-y", "-loglevel", "error", "-f", "lavfi", "-i", "testsrc=size=1280x720:rate=30",
+                            "-f", "lavfi", "-i", "sine=frequency=440", "-t", "12", "-c:v", "libx264", "-c:a", "aac", str(src)], check=True)
+            subprocess.run(["ffmpeg", "-y", "-loglevel", "error", "-f", "lavfi", "-i", "testsrc2=size=1920x1080:rate=25",
+                            "-f", "lavfi", "-i", "sine=frequency=880", "-t", "3", "-c:v", "libx264", "-c:a", "aac", str(intro)], check=True)
+            subprocess.run(["ffmpeg", "-y", "-loglevel", "error", "-f", "lavfi", "-i", "testsrc2=size=640x480:rate=30",
+                            "-t", "2", "-c:v", "libx264", str(silent)], check=True)
+            info = probe(src)
+            for name, ip, op, want in (("a", intro, None, 3 + 8), ("b", silent, None, 2 + 8), ("c", None, None, 8),
+                                       ("d", intro, silent, 3 + 8 + 2), ("e", None, intro, 8 + 3), ("f", intro, intro, 3 + 8 + 3)):
+                out = d / f"{name}.mp4"
+                render(src, info, ip, 2.0, 10.0, out, op)
+                got = probe(out)
+                self.assertEqual((got.width, got.height), (1280, 720))
+                self.assertAlmostEqual(got.duration, want, delta=0.3)
+
+
+class ProcessTests(unittest.TestCase):
+    """One Drive video through clips and full episode, with Drive, Whisper and Claude faked."""
+
+    def test_clips_then_full_episode(self):
+        from clips import run
+        from clips.episode import EpisodePlan
+        from clips.pick import Clip
+        with tempfile.TemporaryDirectory() as d:
+            d = Path(d)
+            src = d / "src.mp4"
+            subprocess.run(["ffmpeg", "-y", "-loglevel", "error", "-f", "lavfi", "-i", "testsrc=size=1280x720:rate=30",
+                            "-f", "lavfi", "-i", "sine=frequency=440", "-t", "30", "-c:v", "libx264", "-c:a", "aac", str(src)], check=True)
+            uploads = []
+
+            class FakeDrive:
+                def download(self, file_id, dest):
+                    dest.write_bytes(src.read_bytes())
+                    return dest
+
+                def folder(self, parent, name):
+                    return name
+
+                def upload(self, path, parent, mime):
+                    uploads.append((parent, path.name))
+                    return {"id": str(len(uploads)), "webViewLink": "link"}
+
+            saved = dict(WORK_DIR=config.WORK_DIR, STATE_FILE=config.STATE_FILE)
+            patched = dict(transcribe=run.transcribe, pick_clips=run.pick_clips, plan_episode=run.plan_episode,
+                           face_centres=run.cut_clip.__globals__["face_centres"])
+            try:
+                config.WORK_DIR, config.STATE_FILE = d / "work", d / "state.json"
+                run.transcribe = lambda video, work: words_every(30)
+                run.pick_clips = lambda *a, **k: ([Clip(2.0, 16.0, "Ute story", "why", {"instagram": "ig"})], {})
+                run.plan_episode = lambda *a, **k: (EpisodePlan(3.0, 28.0, "warm-up", {"title": "T"}), {})
+                run.cut_clip.__globals__["face_centres"] = lambda *a, **k: []
+                s = {"videos": {}}
+                f = SimpleNamespace(id="vid1", name="TRE Ep52-1.mp4")
+                run.process_drive_video(FakeDrive(), s, 52, SimpleNamespace(id="ep"), f, None)
+            finally:
+                config.WORK_DIR, config.STATE_FILE = saved["WORK_DIR"], saved["STATE_FILE"]
+                run.transcribe, run.pick_clips, run.plan_episode = patched["transcribe"], patched["pick_clips"], patched["plan_episode"]
+                run.cut_clip.__globals__["face_centres"] = patched["face_centres"]
+            rec = s["videos"]["vid1"]
+            self.assertEqual(rec["status"], "done")
+            self.assertEqual(rec["episode_status"], "done", rec.get("episode_error"))
+            folders = {p for p, _ in uploads}
+            self.assertEqual(folders, {"Clips", "Full episode"})
+            self.assertIn("TRE Ep52 - TRE Ep52-1 - full episode.mp4", [n for _, n in uploads])
+
+
 class CaptionTests(unittest.TestCase):
     def test_chunks_and_times(self):
         w = words_every(6)
