@@ -54,6 +54,14 @@ Sometimes you think you're doing it all for your family, until you look back and
 💭 Who else has been there?
 #TruckingLife #FamilySacrifice #RealTalk #MentalHealth #WorkLifeBalance #RippleEffectPodcast #Fatherhood #StayHungry #NoMoreExcuses #LifeLessons
 
+---
+
+People don't understand how easily the process itself can become a weapon.
+How someone can manipulate it, twist it, and walk in looking like the one who needs protecting... while the person actually suffering gets ignored.
+This is the flawed system we're talking about.
+And it needs to change, for every man, woman, and child caught in the crossfire of someone else's lies.
+#FixTheSystem #JusticeNeedsBalance #AbuseIsAbuse #TruthOverPerformance #StopSystemicManipulation #TheRippleEffectPodcast
+
 Pattern that works: open with an emoji and the best line quoted word for word from the clip, then one or two
 lines on why it matters, then a question to the audience to get comments, then the hashtags.
 

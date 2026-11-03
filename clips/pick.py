@@ -26,6 +26,8 @@ Writing:
 - Australian spelling and voice. Funny, cheeky and short. Write like a person, not a marketer.
 - Never invent anything that was not said. Never make fun of a named person who is not on the show, and
   nothing about anyone's private life, health or family.
+- On serious topics (courts, abuse, family law, addiction), talk about the issue, never about an identifiable
+  person: no names, no details that point to someone, nothing that accuses anyone not on the show.
 - No swearing in the written text (swearing in the clip itself is fine).
 - Match the house style in the examples if any are given.
 
