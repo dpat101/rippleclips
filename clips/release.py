@@ -27,7 +27,10 @@ PODBEAN_API = os.environ.get("PODBEAN_API_URL", "https://api.podbean.com/v1")
 CS_PLATFORMS = ("youtube", "facebook")
 TARGETS = CS_PLATFORMS + ("podbean",)
 # ContentStudio's post_type for a full-length video. Checked against drafts before going live.
-FULL_POST_TYPES = {"youtube": "video", "facebook": "feed"}
+# Facebook's "feed" post type stops at 1200 seconds (20 minutes), which a full episode passes, so the full
+# episode goes as a Facebook video post. FACEBOOK_FULL_POST_TYPE in the env file changes it if ContentStudio
+# turns "video" down.
+FULL_POST_TYPES = {"youtube": "video", "facebook": os.environ.get("FACEBOOK_FULL_POST_TYPE", "video")}
 
 
 class PodbeanError(RuntimeError):

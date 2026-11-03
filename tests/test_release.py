@@ -69,7 +69,7 @@ class ReleaseTests(unittest.TestCase):
         self.assertEqual(rec["day"], "2026-11-10")
         self.assertEqual(set(rec["ids"]), {"youtube", "facebook", "podbean"})
         sent = [kw["json"] for m, u, kw in http.calls if u.endswith("/posts")]
-        self.assertEqual({j["post_type"] for j in sent}, {"video", "feed"})
+        self.assertEqual({j["post_type"] for j in sent}, {"video"})
         self.assertTrue(all(j["content"]["media"] == {"media_ids": ["m1"]} for j in sent))
         yt = [j for j in sent if j["accounts"] == ["yt1"]][0]
         self.assertEqual(yt["youtube_options"]["title"], "YT 1")
