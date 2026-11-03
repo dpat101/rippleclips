@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Sets up the rippleclips droplet. Run as root on the droplet (SETUP.md, step 4). Safe to run again.
 #   bash /home/clips/rippleclips/deploy/install.sh          # packages, Python, settings file
-#   bash /home/clips/rippleclips/deploy/install.sh --cron   # also switch on the hourly run
+#   bash /home/clips/rippleclips/deploy/install.sh --cron   # also switch on the daily run (3am Brisbane)
 set -euo pipefail
 APP_USER=clips
 HOME_DIR=/home/$APP_USER
@@ -32,10 +32,10 @@ sudo -u $APP_USER -H bash -c "
 "
 
 if [ "${1:-}" = "--cron" ]; then
-  LINE="7 * * * * cd $REPO && git pull --ff-only -q && .venv/bin/pip install -q -r requirements.txt && .venv/bin/python -m clips.run >> $HOME_DIR/rippleclips-cron.log 2>&1 # rippleclips"
+  LINE="0 17 * * * cd $REPO && git pull --ff-only -q && .venv/bin/pip install -q -r requirements.txt && .venv/bin/python -m clips.run >> $HOME_DIR/rippleclips-cron.log 2>&1 # rippleclips"
   # '|| true': with no crontab yet, grep finds nothing and would stop the script before the line is added
   { sudo -u $APP_USER crontab -l 2>/dev/null | grep -v '# rippleclips' || true; echo "$LINE"; } | sudo -u $APP_USER crontab -
   sudo -u $APP_USER crontab -l | grep -q '# rippleclips'
-  echo "Hourly run switched on (7 minutes past each hour)."
+  echo "Daily run switched on (3am Brisbane, 17:00 UTC)."
 fi
 echo "== Done"

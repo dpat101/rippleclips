@@ -1,4 +1,4 @@
-"""The hourly job (cron). Finds new episode videos in Drive, cuts the funny clips into a Clips folder, and makes
+"""The daily job (cron, 3am Brisbane). Finds new episode videos in Drive, cuts the funny clips into a Clips folder, and makes
 the full episode (warm-up cut, sound levelled, intro in front) in a Full episode folder.
 
     python -m clips.run                 # the normal run (cron)
