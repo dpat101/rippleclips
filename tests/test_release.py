@@ -70,7 +70,10 @@ class ReleaseTests(unittest.TestCase):
         self.assertEqual(set(rec["ids"]), {"youtube", "facebook", "podbean"})
         sent = [kw["json"] for m, u, kw in http.calls if u.endswith("/posts")]
         self.assertEqual({j["post_type"] for j in sent}, {"video", "feed"})
-        self.assertTrue(all(j["content"]["media"]["video"] == "https://drive/f1" for j in sent))
+        self.assertTrue(all(j["content"]["media"] == {"media_ids": ["m1"]} for j in sent))
+        yt = [j for j in sent if j["accounts"] == ["yt1"]][0]
+        self.assertEqual(yt["youtube_options"]["title"], "YT 1")
+        self.assertEqual(yt["content"]["text"], "yt")
         self.assertEqual(pb.published[0][0], "Title 1")
         self.assertFalse(pb.published[0][3])
         # A week later the next one is handed over, a week after the first.

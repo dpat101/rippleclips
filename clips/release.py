@@ -19,7 +19,7 @@ from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
 from . import config
-from .publish import BRISBANE, ContentStudio, CSError, post_time, posting_mode
+from .publish import BRISBANE, ContentStudio, CSError, clean_media, get_media, post_time, posting_mode
 
 log = logging.getLogger(__name__)
 
@@ -164,13 +164,14 @@ def run(drive, s: dict, cs: ContentStudio | None = None, pb: Podbean | None = No
             try:
                 cs = cs or ContentStudio()
                 accounts = cs.accounts()
-                url = drive.public_link(ep["drive_id"])
+                url = rec["media"] = get_media(drive, cs, s, rec, ep["drive_id"], day)
                 for p in missing_cs:
                     try:
                         title, desc = texts(ep, p)
-                        text = "\n\n".join(x for x in (title, desc) if x)
+                        # YouTube's title goes in its own field; Facebook gets the title on top of the text.
+                        text = desc if p == "youtube" else "\n\n".join(x for x in (title, desc) if x)
                         rec["ids"][p] = cs.create_post(cs.account_for(p, accounts), p, text, url, when_local, draft,
-                                                       post_type=FULL_POST_TYPES[p]) or "ok"
+                                                       post_type=FULL_POST_TYPES[p], title=title) or "ok"
                         rec["errors"].pop(p, None)
                     except Exception as e:  # noqa: BLE001 - this place is tried again next run
                         rec["errors"][p] = str(e)[:300]

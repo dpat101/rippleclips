@@ -33,6 +33,8 @@ class FakeHTTP:
             return FakeResp({"status": True, "data": {"_id": "m1", "url": "https://cdn/x.mp4"}})
         if url.endswith("/posts"):
             return FakeResp({"status": True, "data": {"id": f"p{len(self.calls)}"}})
+        if method == "DELETE" and "/media/" in url:
+            return FakeResp({"status": True, "message": "Media deleted permanently."})
         return FakeResp({"status": False, "message": "nope"}, 404)
 
 
@@ -110,7 +112,8 @@ class PublishTests(unittest.TestCase):
                 self.assertLessEqual(abs(to_min(hhmm) - to_min(base)), config.POST_JITTER_MINUTES)
         self.assertIn(f"2026-11-05 {posts['c2']['times']['instagram']}:00", [j["scheduling"]["scheduled_at"] for j in sent])
         yt = [j for j in sent if j["accounts"] == ["yt1"]][0]
-        self.assertEqual(yt["content"]["text"], "YT #shorts\n\ndesc")
+        self.assertEqual(yt["content"]["text"], "desc")
+        self.assertEqual(yt["youtube_options"]["title"], "YT #shorts")
         # Run again the same day: nothing new is sent.
         again = self.run_once(s, "on", FakeDrive(approved={"c2", "c4"}))
         self.assertFalse([1 for m, u, kw in again.calls if u.endswith("/posts")])
@@ -149,19 +152,37 @@ class PublishTests(unittest.TestCase):
         sent = [kw["json"] for m, u, kw in http.calls if u.endswith("/posts")]
         self.assertEqual(sent[0]["scheduling"]["publish_type"], "draft")
 
-    def test_link_by_default_upload_when_asked(self):
+    def test_upload_once_then_deleted_after_it_goes_out(self):
         s = state()
         http = self.run_once(s, "draft", FakeDrive(approved={"c1"}))
-        self.assertFalse([u for m, u, kw in http.calls if u.endswith("/media")])
+        self.assertEqual(len([u for m, u, kw in http.calls if u.endswith("/media")]), 1)  # one upload, 4 posts
         sent = [kw["json"] for m, u, kw in http.calls if u.endswith("/posts")]
-        self.assertEqual(sent[0]["content"]["media"]["video"], "https://drive/c1")
+        self.assertEqual(sent[0]["content"]["media"], {"media_ids": ["m1"]})
+        self.assertEqual(s["cs_media"], [{"id": "m1", "after": "2026-11-07"}])
+        # Two days after the post's day the upload is deleted from the library.
+        http = self.run_once(s, "draft", FakeDrive(approved={"c1"}), today=date(2026, 11, 7))
+        self.assertTrue([u for m, u, kw in http.calls if m == "DELETE" and u.endswith("/media/m1")])
+        self.assertEqual(s["cs_media"], [])
+
+    def test_link_when_asked(self):
         saved = config.CS_VIDEO
-        config.CS_VIDEO = "upload"
+        config.CS_VIDEO = "link"
         try:
             http = self.run_once(state(), "draft", FakeDrive(approved={"c1"}))
         finally:
             config.CS_VIDEO = saved
-        self.assertTrue([u for m, u, kw in http.calls if u.endswith("/media")])
+        self.assertFalse([u for m, u, kw in http.calls if u.endswith("/media")])
+        sent = [kw["json"] for m, u, kw in http.calls if u.endswith("/posts")]
+        self.assertEqual(sent[0]["content"]["media"], {"video": "https://drive/c1"})
+
+    def test_youtube_title_in_its_own_field(self):
+        s = state()
+        s["videos"]["v1"]["clip_list"][0]["text"]["youtube_title"] = "word " * 40
+        http = self.run_once(s, "draft", FakeDrive(approved={"c1"}))
+        yt = [kw["json"] for m, u, kw in http.calls if u.endswith("/posts") and kw["json"]["accounts"] == ["yt1"]][0]
+        self.assertLessEqual(len(yt["youtube_options"]["title"]), 100)
+        self.assertEqual(yt["content"]["text"], "desc")
+        self.assertEqual(yt["post_type"], "shorts")
 
     def test_error_message_never_has_key(self):
         cs = publish.ContentStudio("secret-key", FakeHTTP())
