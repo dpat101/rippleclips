@@ -83,9 +83,43 @@ class PickTests(unittest.TestCase):
 
         clips, usage = pick_clips(self.words, "a.mp4", 52, 300, client=SimpleNamespace(messages=Msgs()))
         self.assertEqual(len(clips), 1)
-        self.assertEqual(sent["tool_choice"]["name"], "save_clips")
+        self.assertEqual(sent["tool_choice"], {"type": "auto"})
+        self.assertEqual(sent["tools"][0]["name"], "save_clips")
         self.assertIn("Healing Through Laughter", sent["messages"][0]["content"])
         self.assertEqual(usage["output_tokens"], 50)
+
+
+    def test_nudge_when_no_tool_call(self):
+        text = SimpleNamespace(type="text", text="Here are my picks...")
+        block = SimpleNamespace(type="tool_use", name="save_clips", input={"clips": []})
+        calls = []
+
+        class Msgs:
+            def create(self, **kw):
+                calls.append(kw)
+                content = [text] if len(calls) == 1 else [block]
+                return SimpleNamespace(content=content, usage=SimpleNamespace(input_tokens=10, output_tokens=5))
+
+        clips, usage = pick_clips(self.words, "a.mp4", 52, 300, client=SimpleNamespace(messages=Msgs()))
+        self.assertEqual(clips, [])
+        self.assertEqual(len(calls), 2)
+        self.assertEqual(usage["input_tokens"], 20)
+
+
+class TranscriptCacheTests(unittest.TestCase):
+    def test_reuses_saved_transcript(self):
+        from clips import run
+        with tempfile.TemporaryDirectory() as d:
+            cache = Path(d) / "t" / "x.json"
+            orig = run.transcribe
+            try:
+                run.transcribe = lambda video, work: [Word(1.0, 1.5, "hi")]
+                first = run.get_words(Path("v.mp4"), Path(d), cache)
+                run.transcribe = lambda video, work: self.fail("transcribed twice")
+                second = run.get_words(Path("v.mp4"), Path(d), cache)
+            finally:
+                run.transcribe = orig
+            self.assertEqual(first, second)
 
 
 class CaptionTests(unittest.TestCase):

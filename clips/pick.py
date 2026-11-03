@@ -101,7 +101,7 @@ def build_prompt(words: list[Word], video_name: str, episode: int) -> str:
         parts.append("House style, past descriptions the host liked:\n<examples>\n" + examples + "\n</examples>")
     parts.append("Transcript (times are minutes:seconds; give your answer in seconds):\n<transcript>\n"
                  + transcript_text(words) + "\n</transcript>")
-    parts.append("Pick the clips and call save_clips.")
+    parts.append("Pick the clips and give your answer by calling the save_clips tool.")
     return "\n\n".join(parts)
 
 
@@ -109,18 +109,29 @@ def ask_claude(words: list[Word], video_name: str, episode: int, client=None) ->
     import anthropic
 
     client = client or anthropic.Anthropic()
-    msg = client.messages.create(
-        model=config.ANTHROPIC_MODEL,
-        max_tokens=8000,
-        system=SYSTEM.format(what_to_pick=WHAT_TO_PICK[config.CLIP_MIX], max_clips=config.MAX_CLIPS_PER_VIDEO, min_s=config.MIN_CLIP_SECONDS, max_s=config.MAX_CLIP_SECONDS),
-        tools=[TOOL],
-        tool_choice={"type": "tool", "name": "save_clips"},
-        messages=[{"role": "user", "content": build_prompt(words, video_name, episode)}],
-    )
-    usage = {"input_tokens": msg.usage.input_tokens, "output_tokens": msg.usage.output_tokens}
-    for block in msg.content:
-        if getattr(block, "type", "") == "tool_use" and block.name == "save_clips":
-            return list(block.input.get("clips", [])), usage
+    system = SYSTEM.format(what_to_pick=WHAT_TO_PICK[config.CLIP_MIX], max_clips=config.MAX_CLIPS_PER_VIDEO,
+                           min_s=config.MIN_CLIP_SECONDS, max_s=config.MAX_CLIP_SECONDS)
+    messages = [{"role": "user", "content": build_prompt(words, video_name, episode)}]
+    usage = {"input_tokens": 0, "output_tokens": 0}
+    # This model doesn't accept a forced tool choice, so ask for the tool and check it was used; one nudge if not.
+    for attempt in range(2):
+        msg = client.messages.create(
+            model=config.ANTHROPIC_MODEL,
+            max_tokens=16000,
+            system=system,
+            tools=[TOOL],
+            tool_choice={"type": "auto"},
+            messages=messages,
+        )
+        usage["input_tokens"] += msg.usage.input_tokens
+        usage["output_tokens"] += msg.usage.output_tokens
+        for block in msg.content:
+            if getattr(block, "type", "") == "tool_use" and block.name == "save_clips":
+                return list(block.input.get("clips", [])), usage
+        messages = messages + [
+            {"role": "assistant", "content": msg.content},
+            {"role": "user", "content": "Please call save_clips now with your clips (an empty list if none are good enough)."},
+        ]
     raise RuntimeError("Claude did not return any clips")
 
 

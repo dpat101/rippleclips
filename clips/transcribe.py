@@ -1,11 +1,19 @@
 """Speech to text on the droplet itself (faster-whisper, free), with the time of every word."""
 from __future__ import annotations
 
+import logging
+import os
 import subprocess
+import time
 from dataclasses import dataclass
 from pathlib import Path
 
 from . import config
+
+log = logging.getLogger(__name__)
+os.environ.setdefault("HF_HUB_DISABLE_PROGRESS_BARS", "1")
+os.environ.setdefault("HF_HUB_VERBOSITY", "error")
+PROGRESS_EVERY = 300  # seconds of audio between progress lines
 
 
 @dataclass
@@ -39,9 +47,15 @@ def transcribe(video: Path, work: Path) -> list[Word]:
 
     wav = extract_audio(video, work / (video.stem + ".wav"))
     model = WhisperModel(config.WHISPER_MODEL, device="cpu", compute_type="int8", cpu_threads=2)
-    segments, _ = model.transcribe(read_wav(wav), language="en", word_timestamps=True, vad_filter=True)
+    segments, info = model.transcribe(read_wav(wav), language="en", word_timestamps=True, vad_filter=True)
+    total = getattr(info, "duration", 0) or 0
     words: list[Word] = []
+    began, next_note = time.monotonic(), PROGRESS_EVERY
     for seg in segments:
+        if seg.end >= next_note:
+            log.info("transcribing %s: %d of %d minutes done (%d minutes so far)", video.name, seg.end // 60,
+                     total // 60, (time.monotonic() - began) // 60)
+            next_note += PROGRESS_EVERY
         for w in seg.words or []:
             text = w.word.strip()
             if text:

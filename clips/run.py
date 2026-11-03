@@ -15,6 +15,7 @@ import logging
 import shutil
 import sys
 import traceback
+from dataclasses import asdict
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -23,7 +24,7 @@ from .captions import write_ass
 from .cut import cut_clip, probe
 from .drive import Drive, now_utc, is_settled, safe_name
 from .pick import Clip, pick_clips
-from .transcribe import transcribe
+from .transcribe import Word, transcribe
 
 log = logging.getLogger("clips")
 MAX_FAILURES = 3
@@ -33,9 +34,20 @@ def setup_logging(to_file: bool = True) -> None:
     handlers = [logging.StreamHandler(sys.stdout)]
     if to_file:
         handlers.append(logging.FileHandler(config.LOG_FILE))
+    quiet = QuietLibraries()
+    for h in handlers:
+        h.addFilter(quiet)
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s", handlers=handlers)
-    for noisy in ("googleapiclient", "httpx", "faster_whisper"):
+    for noisy in QuietLibraries.NAMES:
         logging.getLogger(noisy).setLevel(logging.WARNING)
+
+
+class QuietLibraries(logging.Filter):
+    """Drop the libraries' chatter (every web request, model download lines); keep their warnings and errors."""
+    NAMES = ("googleapiclient", "httpx", "httpcore", "huggingface_hub", "faster_whisper", "urllib3", "filelock")
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        return record.levelno >= logging.WARNING or not record.name.startswith(self.NAMES)
 
 
 def check_disk() -> None:
@@ -65,11 +77,24 @@ def fmt(seconds: float) -> str:
     return f"{m}:{s:02d}"
 
 
-def make_clips(video: Path, episode: int, work: Path, first_number: int = 1) -> list[dict]:
+def get_words(video: Path, work: Path, cache: Path | None) -> list[Word]:
+    """Transcribe, or reuse the transcript saved by an earlier attempt (transcribing takes half an hour)."""
+    if cache and cache.exists():
+        words = [Word(**w) for w in json.loads(cache.read_text())]
+        log.info("%s: reusing saved transcript (%d words)", video.name, len(words))
+        return words
+    words = transcribe(video, work)
+    if cache:
+        cache.parent.mkdir(parents=True, exist_ok=True)
+        cache.write_text(json.dumps([asdict(w) for w in words]))
+    return words
+
+
+def make_clips(video: Path, episode: int, work: Path, first_number: int = 1, cache: Path | None = None) -> list[dict]:
     """Transcribe, pick and cut. Returns one record per finished clip (files are in `work`)."""
     info = probe(video)
     log.info("%s: %.0f s, %dx%d", video.name, info.duration, info.width, info.height)
-    words = transcribe(video, work)
+    words = get_words(video, work, cache)
     log.info("%s: %d words transcribed", video.name, len(words))
     clips, usage = pick_clips(words, video.name, episode, info.duration)
     log.info("%s: %d clips kept", video.name, len(clips))
@@ -99,7 +124,8 @@ def process_drive_video(drive: Drive, s: dict, episode: int, folder, f) -> None:
     try:
         video = drive.download(f.id, work / safe_name(f.name, 100))
         ep_state = s.setdefault("episodes", {}).setdefault(str(episode), {"next_number": 1})
-        made = make_clips(video, episode, work, ep_state["next_number"])
+        cache = config.WORK_DIR / "transcripts" / f"{f.id}.json"
+        made = make_clips(video, episode, work, ep_state["next_number"], cache)
         clips_folder = drive.folder(folder.id, config.CLIPS_FOLDER_NAME)
         for c in made:
             up = drive.upload(Path(c["mp4"]), clips_folder, "video/mp4")
@@ -110,6 +136,7 @@ def process_drive_video(drive: Drive, s: dict, episode: int, folder, f) -> None:
         manifest.write_text(json.dumps({"episode": episode, "video": f.name, "clips": made}, indent=2))
         drive.upload(manifest, clips_folder, "application/json")
         ep_state["next_number"] += len(made)
+        cache.unlink(missing_ok=True)
         rec.update(status="done", clips=len(made), finished=datetime.now(timezone.utc).isoformat(), clip_list=made)
         log.info("DONE TRE Ep%d %s: %d clips saved to Drive", episode, f.name, len(made))
     except Exception as e:  # noqa: BLE001 - keep going with other videos, try again next run

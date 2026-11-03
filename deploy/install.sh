@@ -26,7 +26,7 @@ sudo -u $APP_USER -H bash -c "
   .venv/bin/pip install -q -r requirements.txt
   if [ ! -f $HOME_DIR/.rippleclips-env ]; then
     printf '%s\n' '# Ripple Effect clips settings. Never commit or share this file.' \
-      'ANTHROPIC_API_KEY=' 'DRIVE_ROOT_NAME=The Ripple Effect' 'START_EPISODE=51' > $HOME_DIR/.rippleclips-env
+      'ANTHROPIC_API_KEY=' 'DRIVE_ROOT_NAME=The Ripple Effect' 'START_EPISODE=52' > $HOME_DIR/.rippleclips-env
   fi
   chmod 600 $HOME_DIR/.rippleclips-env
 "
