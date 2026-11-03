@@ -15,8 +15,7 @@ Facebook Reels, YouTube Shorts and TikTok. The goal of every clip is views: peop
 comment.
 
 Picking clips:
-- Choose only genuinely funny moments: a punchline, a story with a payoff, banter, a ridiculous admission,
-  a reaction that lands. Quality over quantity. Return none if nothing is funny enough.
+- {what_to_pick} Quality over quantity. Return none if nothing is good enough.
 - Decide how many the video deserves (at most {max_clips}). Clips must not overlap.
 - Each clip is {min_s:.0f} to {max_s:.0f} seconds, starts on the first word of a sentence and ends just after the
   laugh or punchline lands. It must make sense to someone who has not heard the rest of the episode.
@@ -31,6 +30,14 @@ Writing:
 - Match the house style in the examples if any are given.
 
 Every time you are given is in seconds from the start of the video, as in the transcript."""
+
+WHAT_TO_PICK = {
+    "funny": "Choose only genuinely funny moments: a punchline, a story with a payoff, banter, a ridiculous "
+             "admission, a reaction that lands.",
+    "funny_and_powerful": "Choose mostly genuinely funny moments (a punchline, a story with a payoff, banter, a "
+                          "ridiculous admission, a reaction that lands), plus the odd powerful one: a raw, honest "
+                          "or wise line people will relate to and want to share. Funny clips should outnumber the rest.",
+}
 
 TOOL = {
     "name": "save_clips",
@@ -103,7 +110,7 @@ def ask_claude(words: list[Word], video_name: str, episode: int, client=None) ->
     msg = client.messages.create(
         model=config.ANTHROPIC_MODEL,
         max_tokens=8000,
-        system=SYSTEM.format(max_clips=config.MAX_CLIPS_PER_VIDEO, min_s=config.MIN_CLIP_SECONDS, max_s=config.MAX_CLIP_SECONDS),
+        system=SYSTEM.format(what_to_pick=WHAT_TO_PICK[config.CLIP_MIX], max_clips=config.MAX_CLIPS_PER_VIDEO, min_s=config.MIN_CLIP_SECONDS, max_s=config.MAX_CLIP_SECONDS),
         tools=[TOOL],
         tool_choice={"type": "tool", "name": "save_clips"},
         messages=[{"role": "user", "content": build_prompt(words, video_name, episode)}],

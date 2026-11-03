@@ -38,7 +38,8 @@ START_EPISODE = int(os.environ.get("START_EPISODE", "0"))
 ANTHROPIC_MODEL = os.environ.get("ANTHROPIC_MODEL", "claude-opus-5-5")
 STYLE_FILE = Path(__file__).resolve().parent.parent / "style" / "examples.md"
 
-# Clips
+# Clips. CLIP_MIX: "funny" or "funny_and_powerful" (Dave's choice, 3 Nov 2026)
+CLIP_MIX = os.environ.get("CLIP_MIX", "funny_and_powerful")
 MIN_CLIP_SECONDS = 12.0
 MAX_CLIP_SECONDS = 90.0
 MAX_CLIPS_PER_VIDEO = 8
