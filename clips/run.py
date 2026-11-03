@@ -20,7 +20,7 @@ from dataclasses import asdict
 from datetime import datetime, timezone
 from pathlib import Path
 
-from . import config, publish, state as st
+from . import config, publish, release, state as st
 from .captions import write_ass
 from .cut import cut_clip, probe
 from .drive import Drive, now_utc, is_settled, safe_name
@@ -253,6 +253,11 @@ def run() -> None:
         publish.run(drive, s)
     except Exception as e:  # noqa: BLE001 - posting problems never stop the clips
         log.error("POSTING failed: %s\n%s", e, traceback.format_exc())
+    try:
+        st.save(s)
+        release.run(drive, s)
+    except Exception as e:  # noqa: BLE001
+        log.error("RELEASE failed: %s\n%s", e, traceback.format_exc())
     finally:
         st.save(s)
 
@@ -283,6 +288,14 @@ def status() -> None:
             if rec.get("errors"):
                 line += f"  problems: {rec['errors']}"
             print(line)
+    r = s.get("releases", {})
+    for key in ("episodes", "drafts"):
+        for rec in sorted(r.get(key, {}).values(), key=lambda x: x.get("day", "")):
+            sent = ", ".join(sorted(rec.get("ids", {}))) or "none yet"
+            line = f"  {rec.get('day')} {rec.get('time')}  full episode TRE Ep{rec.get('episode')}  {rec.get('title')}  ({key.rstrip('s')}: {sent})"
+            if rec.get("errors"):
+                line += f"  problems: {rec['errors']}"
+            print(line)
 
 
 def local(path: str, episode: int) -> None:
@@ -298,6 +311,7 @@ def main() -> None:
     p = argparse.ArgumentParser()
     p.add_argument("--status", action="store_true")
     p.add_argument("--contentstudio-check", action="store_true")
+    p.add_argument("--podbean-check", action="store_true")
     p.add_argument("--local")
     p.add_argument("--episode", type=int, default=0)
     a = p.parse_args()
@@ -306,6 +320,9 @@ def main() -> None:
         return
     if a.contentstudio_check:
         publish.check()
+        return
+    if a.podbean_check:
+        release.check()
         return
     setup_logging()
     config.WORK_DIR.mkdir(parents=True, exist_ok=True)
