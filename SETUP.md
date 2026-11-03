@@ -1,0 +1,123 @@
+# Setting up the Ripple Effect clips droplet
+
+Droplet: **rippleclips**, `134.199.155.143` (Sydney, 4 GB, created 3 November 2026).
+The app runs as the user `clips`; the code is in `/home/clips/rippleclips`.
+
+Each step says which window it goes in:
+
+- **PowerShell** on your PC
+- **Droplet**: after logging in with step 1
+- **Browser**
+
+Never paste a key, password or token into the Claude chat.
+
+## 1. Log in to the droplet (PowerShell)
+
+```
+ssh root@134.199.155.143
+```
+
+Type `yes` if it asks about the fingerprint.
+
+## 2. Make a read-only key for GitHub (Droplet)
+
+Paste this whole block:
+
+```
+id -u clips >/dev/null 2>&1 || useradd -m -s /bin/bash clips
+sudo -u clips -H bash -c 'mkdir -p ~/.ssh && ssh-keygen -t ed25519 -N "" -f ~/.ssh/github-rippleclips -C rippleclips-droplet -q && printf "Host github-rippleclips\n  HostName github.com\n  User git\n  IdentityFile ~/.ssh/github-rippleclips\n  IdentitiesOnly yes\n" >> ~/.ssh/config && chmod 600 ~/.ssh/config && cat ~/.ssh/github-rippleclips.pub'
+```
+
+It prints one line starting `ssh-ed25519`. That is a public key, safe to copy.
+
+## 3. Give the droplet read access to the code (Browser)
+
+1. Go to https://github.com/dpat101/rippleclips/settings/keys and press **Add deploy key**.
+2. Title: `rippleclips droplet`. Key: paste the `ssh-ed25519 ...` line.
+3. Leave **Allow write access** unticked. Press **Add key**.
+
+## 4. Fetch the code and install (Droplet)
+
+```
+sudo -u clips -H bash -c 'ssh-keyscan github.com >> ~/.ssh/known_hosts 2>/dev/null && git clone git@github-rippleclips:dpat101/rippleclips.git ~/rippleclips'
+bash /home/clips/rippleclips/deploy/install.sh
+```
+
+It takes about 5 minutes and ends with `== Done`.
+
+## 5. Anthropic key (Browser, then Droplet)
+
+1. In https://console.anthropic.com create a workspace called **Ripple clips** and set its monthly
+   spend limit to **US$10** (Settings, Limits).
+2. In that workspace create an API key and copy it.
+3. On the droplet:
+
+   ```
+   nano /home/clips/.rippleclips-env
+   ```
+
+   Paste the key straight after `ANTHROPIC_API_KEY=` (no spaces), then Ctrl+O, Enter, Ctrl+X.
+4. Check it is there without showing it (it should print a number around 100 and `sk-ant`):
+
+   ```
+   grep '^ANTHROPIC_API_KEY=' /home/clips/.rippleclips-env | cut -d= -f2 | tr -d '\n' | wc -c; grep -o '^ANTHROPIC_API_KEY=sk-ant' /home/clips/.rippleclips-env | cut -d= -f2
+   ```
+
+## 6. Google Drive sign-in
+
+Use the Google account that **owns** The Ripple Effect folder.
+
+**Browser:**
+
+1. Go to https://console.cloud.google.com, signed in as that account. Create a project called `rippleclips`.
+2. **APIs & Services → Library**, search **Google Drive API**, press **Enable**.
+3. **APIs & Services → OAuth consent screen** (Google Auth Platform): app name `Ripple clips`, user type
+   **External**, your email for support and contact. Under **Audience**, press **Publish app** so it is
+   "In production". This stops the sign-in from expiring every 7 days. Google doesn't need to check an
+   app used only by you; you will just see a "Google hasn't verified this app" screen once.
+4. **Clients → Create client**, type **Desktop app**, name `rippleclips`. Press **Download JSON**.
+
+**PowerShell** (a new window; change the file name to the one you downloaded):
+
+```
+scp "C:\Users\david\Downloads\client_secret_XXXX.json" root@134.199.155.143:/home/clips/.rippleclips-google-client.json
+ssh root@134.199.155.143 'chown clips:clips /home/clips/.rippleclips-google-client.json && chmod 600 /home/clips/.rippleclips-google-client.json'
+```
+
+Then sign in through a tunnel (**PowerShell**):
+
+```
+ssh -t -L 8085:localhost:8085 root@134.199.155.143 'bash /home/clips/rippleclips/deploy/google-signin.sh'
+```
+
+It prints a link. Open it in the browser on your PC, pick the folder's owner account, press **Advanced →
+Go to Ripple clips** on the warning screen, and allow Drive access. PowerShell then says `Saved.`
+
+## 7. First run (Droplet)
+
+```
+sudo -u clips -H bash -c 'cd ~/rippleclips && .venv/bin/python -m clips.run'
+```
+
+This does TRE Ep51 and TRE Ep52 (it ignores older episodes; see `START_EPISODE`). The first run also
+downloads the speech-to-text model. Expect 10 to 30 minutes. When it ends, each episode folder in Drive has
+a **Clips** folder with the clips, a `.txt` with each clip's descriptions, and a `clips.json` list.
+
+Check what was done:
+
+```
+sudo -u clips -H bash -c 'cd ~/rippleclips && .venv/bin/python -m clips.run --status'
+```
+
+## 8. Switch on the hourly run (Droplet)
+
+Only after you are happy with the clips from step 7:
+
+```
+bash /home/clips/rippleclips/deploy/install.sh --cron
+```
+
+From then on it runs at 7 minutes past every hour, picks up code merged to `main` by itself, and handles each
+new `TRE Ep..` folder once nothing in it has changed for 2 hours.
+
+Logs: `tail -50 /home/clips/rippleclips.log`
