@@ -137,6 +137,11 @@ class Drive:
             media_body=media, fields="id, webViewLink", supportsAllDrives=True,
         ).execute()
 
+    def parent(self, file_id: str) -> str:
+        """The folder a file is in."""
+        got = self.svc.files().get(fileId=file_id, fields="parents", supportsAllDrives=True).execute()
+        return (got.get("parents") or [""])[0]
+
     def public_link(self, file_id: str) -> str:
         """Let anyone with the link view the file, and return a direct download link to it.
 

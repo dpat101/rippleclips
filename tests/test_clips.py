@@ -166,6 +166,38 @@ class EpisodeTests(unittest.TestCase):
                 got = probe(out)
                 self.assertEqual((got.width, got.height), (1280, 720))
                 self.assertAlmostEqual(got.duration, want, delta=0.3)
+            # The Facebook version: two stretches taken out of the middle.
+            out = d / "g.mp4"
+            render(src, info, intro, 1.0, 11.0, out, intro, cuts=[(3.0, 5.0), (7.0, 8.0)])
+            self.assertAlmostEqual(probe(out).duration, 3 + 7 + 3, delta=0.3)
+
+
+class FacebookTests(unittest.TestCase):
+    def test_how_much_to_cut(self):
+        from clips.facebook import seconds_to_cut
+        # 21.7 minutes in all, 40 s of it intro and outro: the show must lose enough to finish 15 s under 20 min.
+        self.assertAlmostEqual(seconds_to_cut(1303.4, 100, 100 + 1263.4), 1303.4 - 1185, delta=0.01)
+        self.assertEqual(seconds_to_cut(1100, 0, 1060), 0)
+
+    def test_cuts_stay_inside_and_add_up(self):
+        from clips.facebook import snap
+        words = words_every(1400, step=1.0)  # a word every second
+        cuts = snap([(10, 50), (500.4, 560.2), (550, 600), (1390, 1400)], words, 0, 1400, 99)
+        self.assertEqual(cuts, [(501, 600)])  # opening and sign-off left alone, overlaps joined, on word edges
+        short = snap([(500, 530)], words, 0, 1400, 100)
+        self.assertGreaterEqual(sum(b - a for a, b in short), 100)  # the rest comes off before the sign-off
+        self.assertTrue(all(90 <= a < b <= 1310 for a, b in short))
+
+    def test_claude_answer_used(self):
+        from clips.facebook import plan_cuts
+        block = SimpleNamespace(type="tool_use", name="cut_for_facebook", input={
+            "cuts": [{"start_seconds": 300, "end_seconds": 380, "why": "tangent"}]})
+
+        class Msgs:
+            def create(self, **kw):
+                return SimpleNamespace(content=[block], usage=SimpleNamespace(input_tokens=1, output_tokens=1))
+        cuts, _ = plan_cuts(words_every(1400, step=1.0), 0, 1400, 60, client=SimpleNamespace(messages=Msgs()))
+        self.assertEqual(cuts, [(300, 380)])
 
 
 class ProcessTests(unittest.TestCase):

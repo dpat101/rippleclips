@@ -14,7 +14,11 @@ class FakeDrive:
     def public_link(self, file_id):
         return f"https://drive/{file_id}"
 
+    def __init__(self):
+        self.downloaded = []
+
     def download(self, file_id, dest):
+        self.downloaded.append(file_id)
         dest.write_bytes(b"video")
         return dest
 
@@ -46,9 +50,12 @@ class ReleaseTests(unittest.TestCase):
         config.WORK_DIR = Path(self.tmp.name)
         self.mp3 = mock.patch.object(release, "to_mp3", side_effect=lambda v, out: out.write_bytes(b"mp3") or out)
         self.mp3.start()
+        self.fb = mock.patch.object(release.facebook, "make", return_value={"short_enough": True})
+        self.fb_make = self.fb.start()
 
     def tearDown(self):
         self.mp3.stop()
+        self.fb.stop()
         config.WORK_DIR = self.saved
         self.tmp.cleanup()
         os.environ.pop("POSTING", None)
@@ -58,6 +65,21 @@ class ReleaseTests(unittest.TestCase):
         http, pb = FakeHTTP(), FakePodbean()
         release.run(FakeDrive(), s, release.ContentStudio("k", http), pb, today, rng=random.Random(3))
         return http, pb
+
+    def test_long_episode_gets_a_facebook_version(self):
+        self.fb_make.return_value = {"drive_id": "fbcut", "seconds": 1180}
+        s = state()
+        http, pb = self.go(s, "draft")
+        sent = {kw["json"]["accounts"][0]: kw["json"] for m, u, kw in http.calls if u.endswith("/posts")}
+        uploads = [u for m, u, kw in http.calls if u.endswith("/media")]
+        self.assertEqual(len(uploads), 2)  # the full episode for YouTube, the cut one for Facebook
+        self.assertEqual(sent["fb1"]["post_type"], "feed")
+        self.assertIn("media", s["releases"]["drafts"]["v1"]["facebook"])  # its own upload, deleted later too
+        self.assertEqual(len(s["cs_media"]), 2)
+        self.assertEqual(s["releases"]["drafts"]["v1"]["facebook"]["drive_id"], "fbcut")
+        # A retry doesn't cut it again.
+        self.go(s, "draft")
+        self.assertEqual(self.fb_make.call_count, 1)
 
     def test_one_a_week_on_release_day(self):
         s = state()
@@ -69,7 +91,7 @@ class ReleaseTests(unittest.TestCase):
         self.assertEqual(rec["day"], "2026-11-10")
         self.assertEqual(set(rec["ids"]), {"youtube", "facebook", "podbean"})
         sent = [kw["json"] for m, u, kw in http.calls if u.endswith("/posts")]
-        self.assertEqual({j["post_type"] for j in sent}, {"video"})
+        self.assertEqual({j["accounts"][0]: j["post_type"] for j in sent}, {"yt1": "video", "fb1": "feed"})
         self.assertTrue(all(j["content"]["media"] == {"media_ids": ["m1"]} for j in sent))
         yt = [j for j in sent if j["accounts"] == ["yt1"]][0]
         self.assertEqual(yt["youtube_options"]["title"], "YT 1")
