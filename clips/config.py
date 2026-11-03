@@ -45,6 +45,12 @@ MAX_CLIP_SECONDS = 90.0
 MAX_CLIPS_PER_VIDEO = 8
 OUT_WIDTH, OUT_HEIGHT = 1080, 1920
 
+# Full episodes (Dave, 3 Nov 2026): each video also becomes a finished episode for Spotify and YouTube, with
+# the warm-up cut off, the sound levelled and the intro video from the main Drive folder in front.
+FULL_EPISODES = os.environ.get("FULL_EPISODES", "1") == "1"
+FULL_EPISODE_FOLDER_NAME = "Full episode"
+INTRO_NAME = "Intro"
+
 # Transcription (runs on the droplet, free)
 WHISPER_MODEL = os.environ.get("WHISPER_MODEL", "small.en")
 

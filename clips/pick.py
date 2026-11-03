@@ -105,34 +105,43 @@ def build_prompt(words: list[Word], video_name: str, episode: int) -> str:
     return "\n\n".join(parts)
 
 
-def ask_claude(words: list[Word], video_name: str, episode: int, client=None) -> tuple[list[dict], dict]:
+def call_tool(system: str, prompt: str, tool: dict, client=None, max_tokens: int = 16000) -> tuple[dict, dict]:
+    """Ask Claude to answer through `tool` and return the tool's input and the token usage.
+
+    This model doesn't accept a forced tool choice, so the tool is offered and Claude gets one reminder if it
+    answers in plain text instead.
+    """
     import anthropic
 
     client = client or anthropic.Anthropic()
-    system = SYSTEM.format(what_to_pick=WHAT_TO_PICK[config.CLIP_MIX], max_clips=config.MAX_CLIPS_PER_VIDEO,
-                           min_s=config.MIN_CLIP_SECONDS, max_s=config.MAX_CLIP_SECONDS)
-    messages = [{"role": "user", "content": build_prompt(words, video_name, episode)}]
+    messages = [{"role": "user", "content": prompt}]
     usage = {"input_tokens": 0, "output_tokens": 0}
-    # This model doesn't accept a forced tool choice, so ask for the tool and check it was used; one nudge if not.
-    for attempt in range(2):
+    for _ in range(2):
         msg = client.messages.create(
             model=config.ANTHROPIC_MODEL,
-            max_tokens=16000,
+            max_tokens=max_tokens,
             system=system,
-            tools=[TOOL],
+            tools=[tool],
             tool_choice={"type": "auto"},
             messages=messages,
         )
         usage["input_tokens"] += msg.usage.input_tokens
         usage["output_tokens"] += msg.usage.output_tokens
         for block in msg.content:
-            if getattr(block, "type", "") == "tool_use" and block.name == "save_clips":
-                return list(block.input.get("clips", [])), usage
+            if getattr(block, "type", "") == "tool_use" and block.name == tool["name"]:
+                return dict(block.input), usage
         messages = messages + [
             {"role": "assistant", "content": msg.content},
-            {"role": "user", "content": "Please call save_clips now with your clips (an empty list if none are good enough)."},
+            {"role": "user", "content": f"Please give your answer now by calling the {tool['name']} tool."},
         ]
-    raise RuntimeError("Claude did not return any clips")
+    raise RuntimeError(f"Claude did not call {tool['name']}")
+
+
+def ask_claude(words: list[Word], video_name: str, episode: int, client=None) -> tuple[list[dict], dict]:
+    system = SYSTEM.format(what_to_pick=WHAT_TO_PICK[config.CLIP_MIX], max_clips=config.MAX_CLIPS_PER_VIDEO,
+                           min_s=config.MIN_CLIP_SECONDS, max_s=config.MAX_CLIP_SECONDS)
+    answer, usage = call_tool(system, build_prompt(words, video_name, episode), TOOL, client)
+    return list(answer.get("clips", [])), usage
 
 
 def snap(words: list[Word], start: float, end: float, duration: float) -> tuple[float, float] | None:

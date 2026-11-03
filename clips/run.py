@@ -1,4 +1,5 @@
-"""The hourly job (cron). Finds new episode videos in Drive, cuts the funny clips, saves them to a Clips folder.
+"""The hourly job (cron). Finds new episode videos in Drive, cuts the funny clips into a Clips folder, and makes
+the full episode (warm-up cut, sound levelled, intro in front) in a Full episode folder.
 
     python -m clips.run                 # the normal run (cron)
     python -m clips.run --status        # what has been done
@@ -23,6 +24,7 @@ from . import config, state as st
 from .captions import write_ass
 from .cut import cut_clip, probe
 from .drive import Drive, now_utc, is_settled, safe_name
+from .episode import description_text as episode_text, plan_episode, render
 from .pick import Clip, pick_clips
 from .transcribe import Word, transcribe
 
@@ -117,36 +119,112 @@ def make_clips(video: Path, episode: int, work: Path, first_number: int = 1, cac
     return done
 
 
-def process_drive_video(drive: Drive, s: dict, episode: int, folder, f) -> None:
+def needs_clips(s: dict, file_id: str) -> bool:
+    return not st.is_done(s, file_id) and st.failures(s, file_id) < MAX_FAILURES
+
+
+def needs_episode(s: dict, file_id: str) -> bool:
+    rec = s["videos"].get(file_id, {})
+    return (config.FULL_EPISODES and rec.get("episode_status") != "done"
+            and int(rec.get("episode_failures", 0)) < MAX_FAILURES)
+
+
+def do_clips(drive: Drive, s: dict, rec: dict, episode: int, folder, f, video: Path, work: Path, cache: Path) -> None:
+    ep_state = s.setdefault("episodes", {}).setdefault(str(episode), {"next_number": 1})
+    made = make_clips(video, episode, work, ep_state["next_number"], cache)
+    clips_folder = drive.folder(folder.id, config.CLIPS_FOLDER_NAME)
+    for c in made:
+        up = drive.upload(Path(c["mp4"]), clips_folder, "video/mp4")
+        drive.upload(Path(c["txt"]), clips_folder, "text/plain")
+        c["drive_id"], c["drive_link"] = up["id"], up.get("webViewLink", "")
+        c.pop("mp4"), c.pop("txt")
+    manifest = work / f"{safe_name(Path(f.name).stem)} clips.json"
+    manifest.write_text(json.dumps({"episode": episode, "video": f.name, "clips": made}, indent=2))
+    drive.upload(manifest, clips_folder, "application/json")
+    ep_state["next_number"] += len(made)
+    rec.update(status="done", clips=len(made), finished=datetime.now(timezone.utc).isoformat(), clip_list=made)
+    log.info("DONE TRE Ep%d %s: %d clips saved to Drive", episode, f.name, len(made))
+
+
+def make_episode(video: Path, episode: int, work: Path, intro: Path | None, cache: Path | None = None) -> dict:
+    """Trim, level and put the intro in front. Returns the record, with the files in `work`."""
+    info = probe(video)
+    words = get_words(video, work, cache)
+    plan, usage = plan_episode(words, video.name, episode, info.duration)
+    log.info("%s: full episode keeps %s to %s of %s (%s)", video.name, fmt(plan.start), fmt(plan.end),
+             fmt(info.duration), plan.why)
+    stem = safe_name(f"TRE Ep{episode} - {Path(video.name).stem} - full episode", 100)
+    out, txt = work / f"{stem}.mp4", work / f"{stem}.txt"
+    render(video, info, intro, plan.start, plan.end, out)
+    txt.write_text(episode_text(plan, episode, video.name, intro is not None), encoding="utf-8")
+    log.info("Claude usage for %s episode: %s", video.name, json.dumps(usage))
+    return {"start": plan.start, "end": plan.end, "why": plan.why, "text": plan.text, "intro": intro is not None,
+            "mp4": str(out), "txt": str(txt)}
+
+
+def do_episode(drive: Drive, rec: dict, episode: int, folder, f, video: Path, work: Path, cache: Path,
+               intro: Path | None) -> None:
+    made = make_episode(video, episode, work, intro, cache)
+    target = drive.folder(folder.id, config.FULL_EPISODE_FOLDER_NAME)
+    up = drive.upload(Path(made["mp4"]), target, "video/mp4")
+    drive.upload(Path(made["txt"]), target, "text/plain")
+    made["drive_id"], made["drive_link"] = up["id"], up.get("webViewLink", "")
+    made.pop("mp4"), made.pop("txt")
+    rec.update(episode_status="done", full_episode=made)
+    log.info("DONE TRE Ep%d %s: full episode saved to Drive", episode, f.name)
+
+
+def fail(rec: dict, what: str, f, e: Exception) -> None:
+    key = "failures" if what == "clips" else "episode_failures"
+    rec[key] = int(rec.get(key, 0)) + 1
+    rec["status" if what == "clips" else "episode_status"] = "failed"
+    rec["last_error" if what == "clips" else "episode_error"] = f"{type(e).__name__}: {e}"[:500]
+    log.error("FAILED %s %s (attempt %d): %s\n%s", what, f.name, rec[key], e, traceback.format_exc())
+
+
+def process_drive_video(drive: Drive, s: dict, episode: int, folder, f, intro: Path | None = None) -> None:
     work = config.WORK_DIR / f.id
     work.mkdir(parents=True, exist_ok=True)
     rec = s["videos"].setdefault(f.id, {"name": f.name, "episode": episode})
+    # Transcripts are small and kept, so a retry or a later job never transcribes the same video twice.
+    cache = config.WORK_DIR / "transcripts" / f"{f.id}.json"
     try:
         video = drive.download(f.id, work / safe_name(f.name, 100))
-        ep_state = s.setdefault("episodes", {}).setdefault(str(episode), {"next_number": 1})
-        cache = config.WORK_DIR / "transcripts" / f"{f.id}.json"
-        made = make_clips(video, episode, work, ep_state["next_number"], cache)
-        clips_folder = drive.folder(folder.id, config.CLIPS_FOLDER_NAME)
-        for c in made:
-            up = drive.upload(Path(c["mp4"]), clips_folder, "video/mp4")
-            drive.upload(Path(c["txt"]), clips_folder, "text/plain")
-            c["drive_id"], c["drive_link"] = up["id"], up.get("webViewLink", "")
-            c.pop("mp4"), c.pop("txt")
-        manifest = work / f"{safe_name(Path(f.name).stem)} clips.json"
-        manifest.write_text(json.dumps({"episode": episode, "video": f.name, "clips": made}, indent=2))
-        drive.upload(manifest, clips_folder, "application/json")
-        ep_state["next_number"] += len(made)
-        cache.unlink(missing_ok=True)
-        rec.update(status="done", clips=len(made), finished=datetime.now(timezone.utc).isoformat(), clip_list=made)
-        log.info("DONE TRE Ep%d %s: %d clips saved to Drive", episode, f.name, len(made))
-    except Exception as e:  # noqa: BLE001 - keep going with other videos, try again next run
-        rec["failures"] = st.failures(s, f.id) + 1
-        rec["status"] = "failed"
-        rec["last_error"] = f"{type(e).__name__}: {e}"[:500]
-        log.error("FAILED %s (attempt %d): %s\n%s", f.name, rec["failures"], e, traceback.format_exc())
+        if needs_clips(s, f.id):
+            try:
+                do_clips(drive, s, rec, episode, folder, f, video, work, cache)
+            except Exception as e:  # noqa: BLE001 - keep going, try again next run
+                fail(rec, "clips", f, e)
+            st.save(s)
+        if needs_episode(s, f.id):
+            try:
+                do_episode(drive, rec, episode, folder, f, video, work, cache, intro)
+            except Exception as e:  # noqa: BLE001
+                fail(rec, "full episode", f, e)
+    except Exception as e:  # noqa: BLE001 - the download failed
+        fail(rec, "clips", f, e)
     finally:
         st.save(s)
         shutil.rmtree(work, ignore_errors=True)
+
+
+def get_intro(drive: Drive) -> Path | None:
+    """Intro.mp4 (any video named Intro) from the main Drive folder, downloaded once per version."""
+    if not config.FULL_EPISODES:
+        return None
+    files = [f for f in drive.children(drive.root_id())
+             if f.mime_type.startswith("video/") and Path(f.name).stem.strip().lower() == config.INTRO_NAME.lower()]
+    if not files:
+        log.warning("No %s video in the main folder: full episodes will have no intro", config.INTRO_NAME)
+        return None
+    f = max(files, key=lambda x: x.modified)
+    dest = config.WORK_DIR / "intro" / f"{f.id}-{int(f.modified.timestamp())}{Path(f.name).suffix or '.mp4'}"
+    if not dest.exists():
+        shutil.rmtree(dest.parent, ignore_errors=True)
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        drive.download(f.id, dest)
+        log.info("downloaded the intro (%s)", f.name)
+    return dest
 
 
 def run() -> None:
@@ -154,16 +232,19 @@ def run() -> None:
     drive = Drive()
     s = st.load()
     now = now_utc()
+    intro = None
     for episode, folder in drive.episodes():
         videos = [f for f in drive.children(folder.id) if f.mime_type.startswith("video/")]
-        todo = [f for f in videos if not st.is_done(s, f.id) and st.failures(s, f.id) < MAX_FAILURES]
+        todo = [f for f in videos if needs_clips(s, f.id) or needs_episode(s, f.id)]
         if not todo:
             continue
         if not is_settled(videos, now, config.SETTLE_HOURS):
             log.info("TRE Ep%d: still uploading, waiting", episode)
             continue
+        if intro is None:
+            intro = get_intro(drive)
         for f in sorted(todo, key=lambda x: x.name):
-            process_drive_video(drive, s, episode, folder, f)
+            process_drive_video(drive, s, episode, folder, f, intro)
 
 
 def status() -> None:
@@ -174,6 +255,10 @@ def status() -> None:
             line += f", {rec.get('clips')} clips"
         if rec.get("last_error") and rec.get("status") != "done":
             line += f" ({rec.get('failures')} failures, last: {rec['last_error'][:120]})"
+        if config.FULL_EPISODES:
+            line += f"; full episode: {rec.get('episode_status') or 'to do'}"
+            if rec.get("episode_error") and rec.get("episode_status") != "done":
+                line += f" ({rec.get('episode_failures')} failures, last: {rec['episode_error'][:120]})"
         print(line)
     if not s.get("videos"):
         print("Nothing processed yet.")

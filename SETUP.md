@@ -101,7 +101,10 @@ sudo -u clips -H bash -c 'cd ~/rippleclips && .venv/bin/python -m clips.run'
 
 This does TRE Ep52 and later (it ignores older episodes; see `START_EPISODE`). The first run also
 downloads the speech-to-text model. Turning speech into text takes roughly half the length of the video (an hour-long video about 30 to 40 minutes); it prints a progress line every 5 minutes of audio. When it ends, each episode folder in Drive has
-a **Clips** folder with the clips, a `.txt` with each clip's descriptions, and a `clips.json` list.
+a **Clips** folder with the clips, a `.txt` with each clip's descriptions, and a `clips.json` list, and a
+**Full episode** folder with the finished episode (intro in front, warm-up cut, sound levelled) and its
+title and descriptions. The intro is the video called `Intro` in the main The Ripple Effect folder; replace it
+there to change it.
 
 Check what was done:
 
