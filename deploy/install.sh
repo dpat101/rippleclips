@@ -11,7 +11,7 @@ apt-get update -q
 DEBIAN_FRONTEND=noninteractive apt-get install -y -q python3-venv python3-pip ffmpeg fonts-dejavu-core git
 
 # 2 GB of swap, so transcription never runs out of memory
-if ! swapon --show | grep -q /swapfile; then
+if ! grep -q '^/swapfile ' /proc/swaps; then
   fallocate -l 2G /swapfile && chmod 600 /swapfile && mkswap /swapfile && swapon /swapfile
   grep -q /swapfile /etc/fstab || echo '/swapfile none swap sw 0 0' >> /etc/fstab
 fi
@@ -33,7 +33,9 @@ sudo -u $APP_USER -H bash -c "
 
 if [ "${1:-}" = "--cron" ]; then
   LINE="7 * * * * cd $REPO && git pull --ff-only -q && .venv/bin/pip install -q -r requirements.txt && .venv/bin/python -m clips.run >> $HOME_DIR/rippleclips-cron.log 2>&1 # rippleclips"
-  ( sudo -u $APP_USER crontab -l 2>/dev/null | grep -v '# rippleclips' ; echo "$LINE" ) | sudo -u $APP_USER crontab -
+  # '|| true': with no crontab yet, grep finds nothing and would stop the script before the line is added
+  { sudo -u $APP_USER crontab -l 2>/dev/null | grep -v '# rippleclips' || true; echo "$LINE"; } | sudo -u $APP_USER crontab -
+  sudo -u $APP_USER crontab -l | grep -q '# rippleclips'
   echo "Hourly run switched on (7 minutes past each hour)."
 fi
 echo "== Done"
