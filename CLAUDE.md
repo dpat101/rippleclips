@@ -22,7 +22,8 @@ The plan is the Claude Doc "Ripple Effect clips: hands-off plan" in the project.
   `<episode>/Full episode`. `FULL_EPISODES=0` in the env file switches it off.
 - Transcripts are kept in `~/rippleclips-work/transcripts/` so a video is never transcribed twice.
 - **Posting** (stage 2, built 3 November 2026; `clips/publish.py`, SETUP.md step 9): after each run, clips from
-  TRE Ep52 on are handed to ContentStudio, one a day at 6pm Brisbane, at most 3 days ahead, one post per
+  TRE Ep52 on are handed to ContentStudio, two a day (Dave, 4 November 2026), each platform at its own time
+  (`SLOT_TIMES`, Brisbane) moved by a random 0 to 30 minutes either way, at most 3 days ahead, one post per
   platform with that platform's caption. `POSTING` in the env file: off (default) / draft (ContentStudio drafts
   only) / on. First 2 weeks after `on`: only clips Dave drags into `<episode>/Clips/Approved`; after that, all
   except `Clips/Don't post`. ContentStudio's post_type values and timezone are not documented: check with drafts

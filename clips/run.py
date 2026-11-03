@@ -277,9 +277,9 @@ def status() -> None:
     if p.get("approval_until"):
         print(f"Only clips in Approved are posted until {p['approval_until']}")
     for key in ("posts", "drafts"):
-        for rec in sorted(p.get(key, {}).values(), key=lambda r: r.get("day", "")):
-            sent = ", ".join(sorted(rec.get("ids", {}))) or "none yet"
-            line = f"  {rec.get('day')} {publish.config.POST_TIME}  TRE Ep{rec.get('episode')}  {rec.get('title')}  ({key[:-1]}: {sent})"
+        for rec in sorted(p.get(key, {}).values(), key=lambda r: (r.get("day", ""), r.get("slot", 1))):
+            sent = ", ".join(f"{pl} {rec.get('times', {}).get(pl, '')}".strip() for pl in sorted(rec.get("ids", {}))) or "none yet"
+            line = f"  {rec.get('day')} clip {rec.get('slot', 1)}  TRE Ep{rec.get('episode')}  {rec.get('title')}  ({key[:-1]}: {sent})"
             if rec.get("errors"):
                 line += f"  problems: {rec['errors']}"
             print(line)

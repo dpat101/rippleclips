@@ -6,8 +6,10 @@ How a clip becomes a post:
 - Each episode's Clips folder in Drive gets two subfolders: "Approved" and "Don't post".
 - For the first 2 weeks after posting is switched on, only clips Dave has dragged into Approved are posted.
 - After that every clip is posted unless Dave drags it into "Don't post".
-- One clip a day (POST_TIME, Brisbane), oldest episode first, at most POST_DAYS_AHEAD days ahead, so a clip can
-  still be stopped in ContentStudio or by dragging it into "Don't post" before it is handed over.
+- Two clips a day (CLIPS_PER_DAY), oldest episode first, from tomorrow on, at most POST_DAYS_AHEAD days ahead, so a
+  clip can still be stopped in ContentStudio or by dragging it into "Don't post" before it is handed over.
+- Each platform has its own time for clip 1 and clip 2 (SLOT_TIMES, Brisbane), and every post goes up at a random
+  minute within POST_JITTER_MINUTES of it, picked once per post and kept, so no two days look the same.
 
 POSTING in ~/.rippleclips-env: "off" (default, nothing is sent), "draft" (posts are made as drafts in
 ContentStudio, for checking; nothing is published) or "on".
@@ -16,6 +18,7 @@ from __future__ import annotations
 
 import logging
 import os
+import random
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from zoneinfo import ZoneInfo
@@ -142,8 +145,20 @@ def posting_mode() -> str:
     return mode if mode in ("off", "draft", "on") else "off"
 
 
-def post_time(day: date) -> datetime:
-    hh, mm = (int(x) for x in config.POST_TIME.split(":"))
+def pick_time(platform: str, slot: int, rng=random) -> str:
+    """The slot's time for this platform, moved a random number of minutes either way."""
+    hh, mm = (int(x) for x in config.SLOT_TIMES[platform][slot - 1].split(":"))
+    j = config.POST_JITTER_MINUTES
+    m = min(23 * 60 + 59, max(0, hh * 60 + mm + rng.randint(-j, j)))
+    return f"{m // 60:02d}:{m % 60:02d}"
+
+
+def next_slot(day: date, slot: int) -> tuple[date, int]:
+    return (day, slot + 1) if slot < config.CLIPS_PER_DAY else (day + timedelta(days=1), 1)
+
+
+def post_time(day: date, hhmm: str) -> datetime:
+    hh, mm = (int(x) for x in hhmm.split(":"))
     local = datetime(day.year, day.month, day.day, hh, mm, tzinfo=BRISBANE)
     # ContentStudio reads the time in the workspace's own timezone (Dave's is Brisbane); UTC if set so.
     return local.astimezone(timezone.utc).replace(tzinfo=None) if config.CS_TIMES_IN_UTC else local.replace(tzinfo=None)
@@ -161,7 +176,7 @@ def candidates(s: dict) -> list[dict]:
     return sorted(out, key=lambda c: (c["episode"], c["number"]))
 
 
-def run(drive, s: dict, cs: ContentStudio | None = None, today: date | None = None) -> None:
+def run(drive, s: dict, cs: ContentStudio | None = None, today: date | None = None, rng=random) -> None:
     mode = posting_mode()
     if mode == "off":
         return
@@ -183,7 +198,9 @@ def run(drive, s: dict, cs: ContentStudio | None = None, today: date | None = No
         skipped |= {f.id for f in drive.children(drive.folder(clips_id, SKIP_FOLDER))}
 
     posts = p.setdefault("drafts" if mode == "draft" else "posts", {})  # practice drafts never count as posted
-    last = max((date.fromisoformat(v["day"]) for v in posts.values() if v.get("day")), default=today)
+    # The last slot handed over so far; new clips go in the slots after it, never before tomorrow.
+    last = max([(date.fromisoformat(v["day"]), int(v.get("slot", 1))) for v in posts.values() if v.get("day")]
+               + [(today, config.CLIPS_PER_DAY)])
     accounts = None
     for clip in candidates(s):
         key = clip["drive_id"]
@@ -192,30 +209,36 @@ def run(drive, s: dict, cs: ContentStudio | None = None, today: date | None = No
             continue  # handed over already
         if key in skipped or (approval and key not in approved):
             continue
-        day = date.fromisoformat(rec["day"]) if rec.get("day") else max(last, today) + timedelta(days=1)
-        if not rec.get("day") and (day - today).days > config.POST_DAYS_AHEAD:
-            break
+        if rec.get("day"):
+            day, slot = date.fromisoformat(rec["day"]), int(rec.get("slot", 1))
+        else:
+            day, slot = next_slot(*last)
+            if (day - today).days > config.POST_DAYS_AHEAD:
+                break
         accounts = accounts if accounts is not None else cs.accounts()
         work = config.WORK_DIR / "posting"
         work.mkdir(parents=True, exist_ok=True)
         video = drive.download(key, work / f"{key}.mp4")
         try:
             url = cs.upload_video(video)
-            rec = posts.setdefault(key, {"day": day.isoformat(), "title": clip["title"], "episode": clip["episode"],
-                                         "mode": mode, "ids": {}, "errors": {}})
-            last = max(last, day)
+            rec = posts.setdefault(key, {"day": day.isoformat(), "slot": slot, "title": clip["title"],
+                                         "episode": clip["episode"], "mode": mode, "ids": {}, "errors": {}})
+            times = rec.setdefault("times", {})
+            last = max(last, (day, slot))
             for platform in PLATFORMS:
                 if rec["ids"].get(platform):
                     continue
                 try:
                     acct = cs.account_for(platform, accounts)
+                    times.setdefault(platform, pick_time(platform, slot, rng))
                     rec["ids"][platform] = cs.create_post(acct, platform, platform_text(clip, platform), url,
-                                                          post_time(day), draft=mode == "draft") or "ok"
+                                                          post_time(day, times[platform]), draft=mode == "draft") or "ok"
                     rec["errors"].pop(platform, None)
                 except Exception as e:  # noqa: BLE001 - try this platform again next run
                     rec["errors"][platform] = str(e)[:300]
                     log.error("POSTING %s to %s failed: %s", clip["title"], platform, e)
-            log.info("Handed %r to ContentStudio for %s (%s)", clip["title"], day.isoformat(), mode)
+            log.info("Handed %r to ContentStudio for %s, clip %d of the day (%s): %s", clip["title"], day.isoformat(),
+                     slot, mode, ", ".join(f"{k} {v}" for k, v in sorted(times.items())))
         finally:
             video.unlink(missing_ok=True)
 

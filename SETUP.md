@@ -145,7 +145,8 @@ ssh root@134.199.155.143 'cd /home/clips/rippleclips && sudo -u clips -H git pul
 Then, in the same settings file:
 
 - `POSTING=draft` makes posts as **drafts** in ContentStudio only, for checking. Nothing is published.
-- `POSTING=on` posts for real: one clip a day at 6pm Brisbane (`POST_TIME`), handed to ContentStudio up to 3 days
-  ahead. For the first 2 weeks only clips you drag into `Clips/Approved` in an episode folder are posted; after
+- `POSTING=on` posts for real: two clips a day, handed to ContentStudio up to 3 days ahead. Each platform has its
+  own times (Brisbane): Facebook 8am and 12pm, YouTube 11am and 4pm, Instagram 7am and 6pm, TikTok 1pm and 8pm,
+  each moved by a random number of minutes up to half an hour either way (`SLOT_TIMES` in `clips/config.py`). For the first 2 weeks only clips you drag into `Clips/Approved` in an episode folder are posted; after
   that every clip is, unless you drag it into `Clips/Don't post`.
 - `POSTING=off` (or no line) stops everything. Posts already handed over can be deleted in ContentStudio.
