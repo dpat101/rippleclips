@@ -33,9 +33,20 @@ def setup_logging(to_file: bool = True) -> None:
     handlers = [logging.StreamHandler(sys.stdout)]
     if to_file:
         handlers.append(logging.FileHandler(config.LOG_FILE))
+    quiet = QuietLibraries()
+    for h in handlers:
+        h.addFilter(quiet)
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s", handlers=handlers)
-    for noisy in ("googleapiclient", "httpx", "faster_whisper"):
+    for noisy in QuietLibraries.NAMES:
         logging.getLogger(noisy).setLevel(logging.WARNING)
+
+
+class QuietLibraries(logging.Filter):
+    """Drop the libraries' chatter (every web request, model download lines); keep their warnings and errors."""
+    NAMES = ("googleapiclient", "httpx", "httpcore", "huggingface_hub", "faster_whisper", "urllib3", "filelock")
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        return record.levelno >= logging.WARNING or not record.name.startswith(self.NAMES)
 
 
 def check_disk() -> None:
