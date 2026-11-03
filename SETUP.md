@@ -124,3 +124,28 @@ From then on it runs every day at 3am Brisbane time, picks up code merged to `ma
 new `TRE Ep..` folder once nothing in it has changed for 2 hours.
 
 Logs: `tail -50 /home/clips/rippleclips.log`
+
+## 9. Posting through ContentStudio (stage 2)
+
+**Browser:** in ContentStudio, switch on **API** in the left menu and press **Generate API Key**.
+
+**PowerShell:** open the settings file and add the key on a new line, `CONTENTSTUDIO_API_KEY=` followed by the
+key with no spaces (Ctrl+O, Enter, Ctrl+X to save):
+
+```
+ssh -t root@134.199.155.143 'nano /home/clips/.rippleclips-env'
+```
+
+Check it can see your accounts (it prints names and ids, never the key):
+
+```
+ssh root@134.199.155.143 'cd /home/clips/rippleclips && sudo -u clips -H git pull --ff-only -q && sudo -u clips -H .venv/bin/pip install -q -r requirements.txt && sudo -u clips -H .venv/bin/python -m clips.run --contentstudio-check'
+```
+
+Then, in the same settings file:
+
+- `POSTING=draft` makes posts as **drafts** in ContentStudio only, for checking. Nothing is published.
+- `POSTING=on` posts for real: one clip a day at 6pm Brisbane (`POST_TIME`), handed to ContentStudio up to 3 days
+  ahead. For the first 2 weeks only clips you drag into `Clips/Approved` in an episode folder are posted; after
+  that every clip is, unless you drag it into `Clips/Don't post`.
+- `POSTING=off` (or no line) stops everything. Posts already handed over can be deleted in ContentStudio.

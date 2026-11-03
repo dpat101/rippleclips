@@ -20,7 +20,7 @@ from dataclasses import asdict
 from datetime import datetime, timezone
 from pathlib import Path
 
-from . import config, state as st
+from . import config, publish, state as st
 from .captions import write_ass
 from .cut import cut_clip, probe
 from .drive import Drive, now_utc, is_settled, safe_name
@@ -249,6 +249,12 @@ def run() -> None:
             outro = outro or intro  # Dave, 3 Nov 2026: with no Outro video, the intro is played at the end too
         for f in sorted(todo, key=lambda x: x.name):
             process_drive_video(drive, s, episode, folder, f, intro, outro)
+    try:
+        publish.run(drive, s)
+    except Exception as e:  # noqa: BLE001 - posting problems never stop the clips
+        log.error("POSTING failed: %s\n%s", e, traceback.format_exc())
+    finally:
+        st.save(s)
 
 
 def status() -> None:
@@ -266,6 +272,17 @@ def status() -> None:
         print(line)
     if not s.get("videos"):
         print("Nothing processed yet.")
+    print(f"Posting: {publish.posting_mode()}")
+    p = s.get("posting", {})
+    if p.get("approval_until"):
+        print(f"Only clips in Approved are posted until {p['approval_until']}")
+    for key in ("posts", "drafts"):
+        for rec in sorted(p.get(key, {}).values(), key=lambda r: r.get("day", "")):
+            sent = ", ".join(sorted(rec.get("ids", {}))) or "none yet"
+            line = f"  {rec.get('day')} {publish.config.POST_TIME}  TRE Ep{rec.get('episode')}  {rec.get('title')}  ({key[:-1]}: {sent})"
+            if rec.get("errors"):
+                line += f"  problems: {rec['errors']}"
+            print(line)
 
 
 def local(path: str, episode: int) -> None:
@@ -280,11 +297,15 @@ def local(path: str, episode: int) -> None:
 def main() -> None:
     p = argparse.ArgumentParser()
     p.add_argument("--status", action="store_true")
+    p.add_argument("--contentstudio-check", action="store_true")
     p.add_argument("--local")
     p.add_argument("--episode", type=int, default=0)
     a = p.parse_args()
     if a.status:
         status()
+        return
+    if a.contentstudio_check:
+        publish.check()
         return
     setup_logging()
     config.WORK_DIR.mkdir(parents=True, exist_ok=True)

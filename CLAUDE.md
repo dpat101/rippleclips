@@ -21,6 +21,12 @@ The plan is the Claude Doc "Ripple Effect clips: hands-off plan" in the project.
   music from a free no-copyright site) goes in front and again at the end (or `Outro.mp4` there, if Dave adds one). Saved with a title and Spotify/YouTube descriptions to
   `<episode>/Full episode`. `FULL_EPISODES=0` in the env file switches it off.
 - Transcripts are kept in `~/rippleclips-work/transcripts/` so a video is never transcribed twice.
+- **Posting** (stage 2, built 3 November 2026; `clips/publish.py`, SETUP.md step 9): after each run, clips from
+  TRE Ep52 on are handed to ContentStudio, one a day at 6pm Brisbane, at most 3 days ahead, one post per
+  platform with that platform's caption. `POSTING` in the env file: off (default) / draft (ContentStudio drafts
+  only) / on. First 2 weeks after `on`: only clips Dave drags into `<episode>/Clips/Approved`; after that, all
+  except `Clips/Don't post`. ContentStudio's post_type values and timezone are not documented: check with drafts
+  first (`POST_TYPES`, `CONTENTSTUDIO_TIMES_IN_UTC`). `--contentstudio-check` lists workspaces and accounts.
 - What has been done is in `~/rippleclips-state.json`; a video that fails is tried again at the next daily run, at most 3 times.
 
 ## Stages
