@@ -30,6 +30,14 @@ The plan is the Claude Doc "Ripple Effect clips: hands-off plan" in the project.
   first (`POST_TYPES`, `CONTENTSTUDIO_TIMES_IN_UTC`). `--contentstudio-check` lists workspaces and accounts. Clips are handed over as a Drive
   link (the file is made viewable by anyone with the link), not uploaded, because ContentStudio's 42 GB media
   storage was full on 4 November 2026 and its API cannot delete media; `CONTENTSTUDIO_VIDEO=upload` uploads instead.
+- **Full episodes go out by themselves** (Dave, 4 November 2026; `clips/release.py`): one a week, oldest first, on
+  `RELEASE_DAY` at `RELEASE_TIME` (Tuesday 7pm Brisbane) moved by up to 30 minutes, no approval. YouTube and Facebook
+  get the video through ContentStudio (Facebook full videos are monetised); Podbean gets an MP3 through its API
+  (`PODBEAN_CLIENT_ID` / `PODBEAN_CLIENT_SECRET`, client credentials) and passes it to Apple and the other apps.
+  Spotify stays Dave's manual video upload: Podbean only sends audio to Spotify, and he has his own Spotify show, so
+  Spotify must never be switched on in Podbean (it would make a second show). Same `POSTING` switch as the clips.
+  `--podbean-check` signs in and lists the podcast. The Podbean API calls follow its help article and the `podbean`
+  Rust crate (Podbean's docs page doesn't load without a browser); check with a draft first.
 - What has been done is in `~/rippleclips-state.json`; a video that fails is tried again at the next daily run, at most 3 times.
 
 ## Stages

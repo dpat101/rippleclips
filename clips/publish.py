@@ -118,11 +118,12 @@ class ContentStudio:
             raise CSError("ContentStudio did not return a link for the uploaded video")
         return url
 
-    def create_post(self, account: str, platform: str, text: str, video_url: str, when: datetime | None, draft: bool) -> str:
+    def create_post(self, account: str, platform: str, text: str, video_url: str, when: datetime | None, draft: bool,
+                    post_type: str | None = None) -> str:
         payload = {
             "content": {"text": text, "media": {"video": video_url}},
             "accounts": [account],
-            "post_type": POST_TYPES.get(platform, "feed"),
+            "post_type": post_type or POST_TYPES.get(platform, "feed"),
             "scheduling": {"publish_type": "draft"} if draft or when is None
             else {"publish_type": "scheduled", "scheduled_at": when.strftime("%Y-%m-%d %H:%M:%S")},
         }

@@ -66,6 +66,11 @@ POST_JITTER_MINUTES = 30
 POST_DAYS_AHEAD = int(os.environ.get("POST_DAYS_AHEAD", "3"))  # hand clips over at most this far ahead
 APPROVAL_DAYS = 14  # first 2 weeks: only clips Dave drags into Approved are posted
 POST_FROM_EPISODE = int(os.environ.get("POST_FROM_EPISODE", "52"))  # Dave, 3 Nov 2026: post from TRE Ep52
+# Full episodes (Dave, 4 November 2026): one a week, no approval, to YouTube and Facebook (ContentStudio) and
+# Podbean (MP3, for Apple and the other apps). Day 0 = Monday ... 6 = Sunday; time is Brisbane.
+RELEASES = os.environ.get("RELEASES", "1") == "1"
+RELEASE_DAY = int(os.environ.get("RELEASE_DAY", "1"))  # Tuesday
+RELEASE_TIME = os.environ.get("RELEASE_TIME", "19:00")
 # How a clip reaches ContentStudio: "link" (a Drive link, nothing stored in ContentStudio's media library, whose
 # 42 GB was full on 4 Nov 2026) or "upload" (the file is uploaded to the media library).
 CS_VIDEO = os.environ.get("CONTENTSTUDIO_VIDEO", "link")
