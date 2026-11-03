@@ -52,6 +52,13 @@ FULL_EPISODE_FOLDER_NAME = "Full episode"
 INTRO_NAME = "Intro"
 OUTRO_NAME = "Outro"  # a video called Outro in the main folder goes at the end; without one, the intro does
 
+# Posting through ContentStudio (stage 2). POSTING is off / draft / on, in the env file.
+POST_TIME = os.environ.get("POST_TIME", "18:00")  # Brisbane time, one clip a day
+POST_DAYS_AHEAD = int(os.environ.get("POST_DAYS_AHEAD", "3"))  # hand clips over at most this far ahead
+APPROVAL_DAYS = 14  # first 2 weeks: only clips Dave drags into Approved are posted
+POST_FROM_EPISODE = int(os.environ.get("POST_FROM_EPISODE", "52"))  # Dave, 3 Nov 2026: post from TRE Ep52
+CS_TIMES_IN_UTC = os.environ.get("CONTENTSTUDIO_TIMES_IN_UTC", "0") == "1"
+
 # Transcription (runs on the droplet, free)
 WHISPER_MODEL = os.environ.get("WHISPER_MODEL", "small.en")
 
