@@ -157,4 +157,6 @@ Then, in the same settings file:
   episodes only. Never switch on Spotify in Podbean: Dave uploads the video to his own Spotify show by hand.
   An episode over 20 minutes goes to Facebook cut down to fit (ContentStudio's limit); the cut version is saved in
   the episode's `Full episode` folder, "... - Facebook (under 20 min).mp4".
+- Practice drafts that were published by hand in ContentStudio or Podbean: run `--drafts-were-published` once before
+  switching to `on`, so they are counted as posted today and never go out again.
 - `POSTING=off` (or no line) stops everything. Posts already handed over can be deleted in ContentStudio.
