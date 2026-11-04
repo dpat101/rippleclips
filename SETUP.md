@@ -155,4 +155,6 @@ Then, in the same settings file:
   through ContentStudio, and as an MP3 to Podbean. Podbean needs `PODBEAN_CLIENT_ID` and `PODBEAN_CLIENT_SECRET`
   (from developers.podbean.com, "Register a new app"); check with `--podbean-check`. `RELEASES=0` stops full
   episodes only. Never switch on Spotify in Podbean: Dave uploads the video to his own Spotify show by hand.
+  An episode over 20 minutes goes to Facebook cut down to fit (ContentStudio's limit); the cut version is saved in
+  the episode's `Full episode` folder, "... - Facebook (under 20 min).mp4".
 - `POSTING=off` (or no line) stops everything. Posts already handed over can be deleted in ContentStudio.

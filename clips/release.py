@@ -1,6 +1,7 @@
 """Full episodes go out on their own, one a week (Dave, 4 November 2026: no approval needed).
 
-- YouTube and Facebook get the full video through ContentStudio, by Drive link (like the clips).
+- YouTube and Facebook get the full video through ContentStudio. Facebook takes 20 minutes at most there, so a
+  longer episode goes to Facebook cut down to fit (facebook.py).
 - Podbean gets an MP3 of the same full episode through Podbean's API; Apple Podcasts and the other apps take it
   from Podbean's feed. Spotify is not sent anything: Dave uploads the video there himself, because Podbean can only
   send audio to Spotify and his Spotify show is his own.
@@ -18,7 +19,7 @@ import subprocess
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
-from . import config
+from . import config, facebook
 from .publish import BRISBANE, ContentStudio, CSError, clean_media, get_media, post_time, posting_mode
 
 log = logging.getLogger(__name__)
@@ -26,11 +27,9 @@ log = logging.getLogger(__name__)
 PODBEAN_API = os.environ.get("PODBEAN_API_URL", "https://api.podbean.com/v1")
 CS_PLATFORMS = ("youtube", "facebook")
 TARGETS = CS_PLATFORMS + ("podbean",)
-# ContentStudio's post_type for a full-length video. Checked against drafts before going live.
-# Facebook's "feed" post type stops at 1200 seconds (20 minutes), which a full episode passes, so the full
-# episode goes as a Facebook video post. FACEBOOK_FULL_POST_TYPE in the env file changes it if ContentStudio
-# turns "video" down.
-FULL_POST_TYPES = {"youtube": "video", "facebook": os.environ.get("FACEBOOK_FULL_POST_TYPE", "video")}
+# ContentStudio's post_type for a full-length video. Facebook allows only feed, reel, story and carousel through
+# ContentStudio, and feed stops at 20 minutes, so a longer episode gets a Facebook version cut to fit (facebook.py).
+FULL_POST_TYPES = {"youtube": "video", "facebook": "feed"}
 
 
 class PodbeanError(RuntimeError):
@@ -167,9 +166,17 @@ def run(drive, s: dict, cs: ContentStudio | None = None, pb: Podbean | None = No
             try:
                 cs = cs or ContentStudio()
                 accounts = cs.accounts()
-                url = rec["media"] = get_media(drive, cs, s, rec, ep["drive_id"], day)
                 for p in missing_cs:
                     try:
+                        if p == "facebook":
+                            fb = rec.setdefault("facebook", {})
+                            if not (fb.get("drive_id") or fb.get("short_enough")):
+                                fb.update(facebook.make(drive, ep, config.WORK_DIR / "release"))
+                        if p == "facebook" and fb.get("drive_id"):
+                            url = get_media(drive, cs, s, fb, fb["drive_id"], day)  # the cut-down version
+                            fb["media"] = url
+                        else:
+                            url = rec["media"] = get_media(drive, cs, s, rec, ep["drive_id"], day)
                         title, desc = texts(ep, p)
                         # YouTube's title goes in its own field; Facebook gets the title on top of the text.
                         text = desc if p == "youtube" else "\n\n".join(x for x in (title, desc) if x)

@@ -106,21 +106,48 @@ def has_audio(video: Path) -> bool:
     return bool(json.loads(out).get("streams"))
 
 
+def keep_parts(start: float, end: float, cuts=()) -> list[tuple[float, float]]:
+    """The stretches of the recording kept: start to end, less the cuts."""
+    parts, at = [], start
+    for a, b in sorted(cuts):
+        a, b = max(a, start), min(b, end)
+        if b <= a or a < at:
+            continue
+        if a - at > 0.5:
+            parts.append((at, a))
+        at = b
+    if end - at > 0.5:
+        parts.append((at, end))
+    return parts
+
+
 def render(video: Path, info: VideoInfo, intro: Path | None, start: float, end: float, out: Path,
-           outro: Path | None = None) -> None:
-    """Intro (if any), the trimmed episode, then the outro (if any), at the episode's own size, sound levelled."""
+           outro: Path | None = None, cuts=()) -> None:
+    """Intro (if any), the trimmed episode, then the outro (if any), at the episode's own size, sound levelled.
+
+    `cuts` are stretches (in seconds of the recording) taken out of the middle, for the Facebook version.
+    """
     w, h = info.width // 2 * 2, info.height // 2 * 2
-    length = end - start
     norm_v = f"scale={w}:{h}:force_original_aspect_ratio=decrease,pad={w}:{h}:(ow-iw)/2:(oh-ih)/2,setsar=1,fps=30,format=yuv420p"
     norm_a = "aresample=48000,aformat=sample_fmts=fltp:channel_layouts=stereo"
-    fade_out = max(0.0, length - 1.5)
-    inputs = ["-ss", f"{start:.2f}", "-t", f"{length:.2f}", "-i", str(video)]
-    parts = [
-        f"[0:v]{norm_v},fade=t=out:st={fade_out:.2f}:d=1.5[v0]",
-        f"[0:a]{LOUDNESS},{norm_a},afade=t=in:d=0.3,afade=t=out:st={fade_out:.2f}:d=1.5[a0]",
-    ]
-    order = ["0"]
-    n = 0
+    keep = keep_parts(start, end, cuts)
+    inputs, parts, body = [], [], []
+    for k, (a, b) in enumerate(keep):
+        length = b - a
+        inputs += ["-ss", f"{a:.2f}", "-t", f"{length:.2f}", "-i", str(video)]
+        first, last = k == 0, k == len(keep) - 1
+        fade_in = 0.3 if first else 0.08  # a tiny fade at each join, so a cut never clicks
+        vf, af = norm_v, f"{LOUDNESS},{norm_a},afade=t=in:d={fade_in}"
+        if last:
+            st = max(0.0, length - 1.5)
+            vf += f",fade=t=out:st={st:.2f}:d=1.5"
+            af += f",afade=t=out:st={st:.2f}:d=1.5"
+        else:
+            af += f",afade=t=out:st={max(0.0, length - 0.08):.2f}:d=0.08"
+        parts += [f"[{k}:v]{vf}[v{k}]", f"[{k}:a]{af}[a{k}]"]
+        body.append(str(k))
+    order = list(body)
+    n = len(keep) - 1
     for role, extra in (("intro", intro), ("outro", outro)):
         if not extra:
             continue
