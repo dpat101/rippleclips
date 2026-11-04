@@ -31,6 +31,7 @@ API = os.environ.get("CONTENTSTUDIO_API_URL", "https://api.contentstudio.io/api/
 PLATFORMS = ("instagram", "facebook", "youtube", "tiktok")
 APPROVED_FOLDER = "Approved"
 SKIP_FOLDER = "Don't post"
+POSTED_FOLDER = "Posted"  # Dave, 4 November 2026: a clip moves here by itself once it is booked in
 BRISBANE = ZoneInfo("Australia/Brisbane")
 # ContentStudio's post_type for each platform. Checked against draft posts before going live.
 POST_TYPES = {"instagram": "reel", "facebook": "reel", "youtube": "shorts", "tiktok": "feed"}
@@ -251,11 +252,11 @@ def run(drive, s: dict, cs: ContentStudio | None = None, today: date | None = No
 
     # Where each clip sits now: Approved, Don't post, or still in Clips.
     folders = {n: f for n, f in drive.episodes()}
-    approved, skipped = set(), set()
+    approved, skipped, clips_ids = set(), set(), {}
     for ep in {c["episode"] for c in candidates(s)}:
         if ep not in folders:
             continue
-        clips_id = drive.folder(folders[ep].id, config.CLIPS_FOLDER_NAME)
+        clips_id = clips_ids[ep] = drive.folder(folders[ep].id, config.CLIPS_FOLDER_NAME)
         approved |= {f.id for f in drive.children(drive.folder(clips_id, APPROVED_FOLDER))}
         skipped |= {f.id for f in drive.children(drive.folder(clips_id, SKIP_FOLDER))}
 
@@ -315,7 +316,31 @@ def run(drive, s: dict, cs: ContentStudio | None = None, today: date | None = No
                 video.unlink(missing_ok=True)
         if test_after:
             break  # the test is one clip
+    if mode == "on":
+        move_posted(drive, s, posts, clips_ids)
     clean_media(s, cs, today)
+
+
+def move_posted(drive, s: dict, posts: dict, clips_ids: dict) -> None:
+    """Move every clip that has gone to all four platforms into Clips/Posted, with its text file."""
+    by_id = {c["drive_id"]: c for c in candidates(s)}
+    for key, rec in posts.items():
+        clip = by_id.get(key)
+        if rec.get("moved") or not clip or not all(rec.get("ids", {}).get(pl) for pl in PLATFORMS):
+            continue
+        clips_id = clips_ids.get(clip["episode"])
+        if not clips_id:
+            continue
+        try:
+            posted = drive.folder(clips_id, POSTED_FOLDER)
+            drive.move(key, posted)
+            stem = f"{int(clip['number']):02d} - "
+            for f in drive.children(clips_id) + drive.children(drive.folder(clips_id, APPROVED_FOLDER)):
+                if f.name.startswith(stem) and f.name.endswith(".txt"):
+                    drive.move(f.id, posted)
+            rec["moved"] = True
+        except Exception as e:  # noqa: BLE001 - only tidying; tried again next run
+            log.warning("Could not move %r into %s: %s", clip.get("title", key), POSTED_FOLDER, e)
 
 
 def get_media(drive, cs: ContentStudio, s: dict, rec: dict, file_id: str, day: date):

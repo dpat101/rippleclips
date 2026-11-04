@@ -41,6 +41,7 @@ class FakeHTTP:
 class FakeDrive:
     def __init__(self, approved=(), skipped=()):
         self.approved, self.skipped = set(approved), set(skipped)
+        self.moves = []
 
     def episodes(self):
         return [(52, SimpleNamespace(id="ep52"))]
@@ -50,7 +51,13 @@ class FakeDrive:
 
     def children(self, folder_id):
         ids = self.approved if folder_id == publish.APPROVED_FOLDER else self.skipped if folder_id == publish.SKIP_FOLDER else set()
-        return [SimpleNamespace(id=i) for i in ids]
+        out = [SimpleNamespace(id=i, name=f"{i}.mp4") for i in ids]
+        if folder_id == "Clips":
+            out.append(SimpleNamespace(id="t1", name="01 - Clip 1.txt"))
+        return out
+
+    def move(self, file_id, folder_id):
+        self.moves.append((file_id, folder_id))
 
     def public_link(self, file_id):
         return f"https://drive/{file_id}"
@@ -189,6 +196,22 @@ class PublishTests(unittest.TestCase):
         publish.run(FakeDrive(approved={"c1", "c2"}), s, publish.ContentStudio("k", FakeHTTP()), date(2026, 11, 4),
                     rng=random.Random(1))
         self.assertEqual(posts["c2"]["day"], "2026-11-05")
+
+    def test_posted_clips_move_to_posted_folder(self):
+        s = state()
+        drive = FakeDrive(approved={"c1"})
+        os.environ["POSTING"] = "on"
+        publish.run(drive, s, publish.ContentStudio("k", FakeHTTP()), date(2026, 11, 4), rng=random.Random(1))
+        self.assertEqual(drive.moves, [("c1", "Posted"), ("t1", "Posted")])
+        self.assertTrue(s["posting"]["posts"]["c1"]["moved"])
+        drive.moves = []
+        publish.run(drive, s, publish.ContentStudio("k", FakeHTTP()), date(2026, 11, 4), rng=random.Random(1))
+        self.assertEqual(drive.moves, [])  # once only
+        # Drafts never move.
+        s2, d2 = state(), FakeDrive(approved={"c1"})
+        os.environ["POSTING"] = "draft"
+        publish.run(d2, s2, publish.ContentStudio("k", FakeHTTP()), date(2026, 11, 4), rng=random.Random(1))
+        self.assertEqual(d2.moves, [])
 
     def test_platform_settings(self):
         http = self.run_once(state(), "draft", FakeDrive(approved={"c1"}))
