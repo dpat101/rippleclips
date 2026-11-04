@@ -175,6 +175,16 @@ class PublishTests(unittest.TestCase):
         sent = [kw["json"] for m, u, kw in http.calls if u.endswith("/posts")]
         self.assertEqual(sent[0]["content"]["media"], {"video": "https://drive/c1"})
 
+    def test_platform_settings(self):
+        http = self.run_once(state(), "draft", FakeDrive(approved={"c1"}))
+        sent = {kw["json"]["accounts"][0]: kw["json"] for m, u, kw in http.calls if u.endswith("/posts")}
+        self.assertEqual(sent["ig1"]["instagram_options"], {"collaborators": ["@marshallwatego"]})
+        self.assertEqual(sent["tt1"]["tiktok_options"]["privacy_level"], "PUBLIC_TO_EVERYONE")
+        self.assertFalse(any(sent["tt1"]["tiktok_options"][k] for k in ("disable_comment", "disable_duet", "disable_stitch")))
+        self.assertEqual(sent["fb1"]["post_video_title"], "Clip 1")  # not the file's name
+        self.assertEqual(sent["yt1"]["post_type"], "shorts")
+        self.assertNotIn("instagram_options", sent["fb1"])
+
     def test_youtube_title_in_its_own_field(self):
         s = state()
         s["videos"]["v1"]["clip_list"][0]["text"]["youtube_title"] = "word " * 40

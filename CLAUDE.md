@@ -31,6 +31,9 @@ The plan is the Claude Doc "Ripple Effect clips: hands-off plan" in the project.
   upload to ContentStudio's media library, used for every platform, and deleted from the library 2 days after its post
   day (`CS_DELETE_AFTER_DAYS`, `DELETE /media/{id}`), so the 42 GB library (full on 4 November 2026) never fills again.
   `CONTENTSTUDIO_VIDEO=link` hands over a Drive link instead (ContentStudio still copies it into the library).
+  Clips go to YouTube as Shorts and full episodes as Videos. Facebook gets the clip's title as its video title
+  (`post_video_title`); Instagram invites `INSTAGRAM_COLLABORATORS` (Marshall, `marshallwatego`); TikTok is public with
+  comments, duets and stitches on (Dave, 4 November 2026).
   YouTube's title goes in `youtube_options.title` (100 characters at most); the API spec is
   https://api-prod.contentstudio.io/api-docs.json.
 - **Full episodes go out by themselves** (Dave, 4 November 2026; `clips/release.py`): one a week, oldest first, on

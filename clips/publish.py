@@ -141,9 +141,24 @@ class ContentStudio:
         if platform == "youtube":
             payload["youtube_options"] = {"title": youtube_title(title or text), "privacy_status": "public",
                                           "made_for_kids": False}
+        if platform in ("youtube", "facebook") and title:
+            payload["post_video_title"] = youtube_title(title)  # Facebook shows it as the video's title
+        if platform == "instagram" and config.INSTAGRAM_COLLABORATORS:
+            payload["instagram_options"] = {"collaborators": config.INSTAGRAM_COLLABORATORS}
+        if platform == "tiktok":
+            # Dave, 4 November 2026: anyone can comment on, duet and stitch the clips.
+            payload["tiktok_options"] = {"privacy_level": "PUBLIC_TO_EVERYONE", "disable_comment": False,
+                                         "disable_duet": False, "disable_stitch": False}
         body = self._call("POST", f"/workspaces/{self.workspace_id()}/posts", json=payload)
         data = body.get("data") or {}
         return str(data.get("id") or data.get("_id") or "")
+
+
+def clip_title(clip: dict, platform: str) -> str:
+    """The video title: YouTube's own, and the clip's short title elsewhere (Facebook shows it on the video)."""
+    if platform == "youtube":
+        return clip.get("text", {}).get("youtube_title", "") or clip.get("title", "")
+    return clip.get("title", "")
 
 
 def youtube_title(text: str) -> str:
@@ -276,7 +291,7 @@ def run(drive, s: dict, cs: ContentStudio | None = None, today: date | None = No
                     times.setdefault(platform, pick_time(platform, slot, rng))
                     rec["ids"][platform] = cs.create_post(acct, platform, platform_text(clip, platform), url,
                                                           post_time(day, times[platform]), draft=mode == "draft",
-                                                          title=clip.get("text", {}).get("youtube_title", "")) or "ok"
+                                                          title=clip_title(clip, platform)) or "ok"
                     rec["errors"].pop(platform, None)
                 except Exception as e:  # noqa: BLE001 - try this platform again next run
                     rec["errors"][platform] = str(e)[:300]

@@ -96,6 +96,8 @@ class ReleaseTests(unittest.TestCase):
         yt = [j for j in sent if j["accounts"] == ["yt1"]][0]
         self.assertEqual(yt["youtube_options"]["title"], "YT 1")
         self.assertEqual(yt["content"]["text"], "yt")
+        fb = [j for j in sent if j["accounts"] == ["fb1"]][0]
+        self.assertEqual(fb["post_video_title"], "YT 1")
         self.assertEqual(pb.published[0][0], "Title 1")
         self.assertFalse(pb.published[0][3])
         # A week later the next one is handed over, a week after the first.
