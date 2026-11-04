@@ -99,8 +99,16 @@ class PublishTests(unittest.TestCase):
         publish.run(FakeDrive(approved={"c1"}), s, cs=None)
         self.assertNotIn("posting", s)
 
+    def test_no_approval_step_by_default(self):
+        s = state()
+        s["posting"] = {"approval_until": "2026-11-18", "posts": {}}  # set before the step was switched off
+        self.run_once(s, "on", FakeDrive(skipped={"c1"}))
+        self.assertEqual(sorted(s["posting"]["posts"]), ["c2", "c3", "c4", "c5"])
+
     def test_approval_period_only_approved_one_a_day(self):
         s = state()
+        config.APPROVAL_DAYS = 14
+        self.addCleanup(setattr, config, "APPROVAL_DAYS", 0)
         http = self.run_once(s, "on", FakeDrive(approved={"c2", "c4", "old1"}))
         posts = s["posting"]["posts"]
         self.assertEqual(sorted(posts), ["c2", "c4"])  # Ep51 never posted, unapproved clips wait
@@ -199,7 +207,7 @@ class PublishTests(unittest.TestCase):
 
     def test_posted_clips_move_to_posted_folder(self):
         s = state()
-        drive = FakeDrive(approved={"c1"})
+        drive = FakeDrive(skipped={"c2", "c3", "c4", "c5"})
         os.environ["POSTING"] = "on"
         publish.run(drive, s, publish.ContentStudio("k", FakeHTTP()), date(2026, 11, 4), rng=random.Random(1))
         self.assertEqual(drive.moves, [("c1", "Posted"), ("t1", "Posted")])

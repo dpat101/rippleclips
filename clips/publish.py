@@ -4,8 +4,8 @@ ContentStudio does the posting at the scheduled time; this only hands each clip 
 
 How a clip becomes a post:
 - Each episode's Clips folder in Drive gets two subfolders: "Approved" and "Don't post".
-- For the first 2 weeks after posting is switched on, only clips Dave has dragged into Approved are posted.
-- After that every clip is posted unless Dave drags it into "Don't post".
+- Every clip is posted unless Dave drags it into "Don't post" (Dave, 4 November 2026: no approval step). With
+  APPROVAL_DAYS set above 0, only clips in Approved are posted for that many days after posting is switched on.
 - Two clips a day (CLIPS_PER_DAY), oldest episode first, from tomorrow on, at most POST_DAYS_AHEAD days ahead, so a
   clip can still be stopped in ContentStudio or by dragging it into "Don't post" before it is handed over.
 - Each platform has its own time for clip 1 and clip 2 (SLOT_TIMES, Brisbane), and every post goes up at a random
@@ -245,9 +245,11 @@ def run(drive, s: dict, cs: ContentStudio | None = None, today: date | None = No
         return
     p = s.setdefault("posting", {"posts": {}})
     today = today or datetime.now(BRISBANE).date()
-    if "approval_until" not in p and mode == "on":
+    if "approval_until" not in p and mode == "on" and config.APPROVAL_DAYS > 0:
         p["approval_until"] = (today + timedelta(days=config.APPROVAL_DAYS)).isoformat()
-    approval = mode == "draft" or today < date.fromisoformat(p.get("approval_until", "9999-12-31"))
+    # Dave, 4 November 2026: no approval step; every clip goes out on schedule unless it is in "Don't post".
+    approval = mode == "draft" or (config.APPROVAL_DAYS > 0
+                                   and today < date.fromisoformat(p.get("approval_until", "9999-12-31")))
     cs = cs or ContentStudio()
 
     # Where each clip sits now: Approved, Don't post, or still in Clips.

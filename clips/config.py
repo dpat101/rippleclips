@@ -64,7 +64,7 @@ SLOT_TIMES = {  # platform: (clip 1, clip 2)
 }
 POST_JITTER_MINUTES = 30
 POST_DAYS_AHEAD = int(os.environ.get("POST_DAYS_AHEAD", "3"))  # hand clips over at most this far ahead
-APPROVAL_DAYS = 14  # first 2 weeks: only clips Dave drags into Approved are posted
+APPROVAL_DAYS = int(os.environ.get("APPROVAL_DAYS", "0"))  # 0: no approval step (Dave, 4 November 2026)
 POST_FROM_EPISODE = int(os.environ.get("POST_FROM_EPISODE", "52"))  # Dave, 3 Nov 2026: post from TRE Ep52
 # Full episodes (Dave, 4 November 2026): one a week, no approval, to YouTube and Facebook (ContentStudio) and
 # Podbean (MP3, for Apple and the other apps). Day 0 = Monday ... 6 = Sunday; time is Brisbane.

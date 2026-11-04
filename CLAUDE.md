@@ -25,8 +25,8 @@ The plan is the Claude Doc "Ripple Effect clips: hands-off plan" in the project.
   TRE Ep52 on are handed to ContentStudio, two a day (Dave, 4 November 2026), each platform at its own time
   (`SLOT_TIMES`, Brisbane) moved by a random 0 to 30 minutes either way, at most 3 days ahead, one post per
   platform with that platform's caption. `POSTING` in the env file: off (default) / draft (ContentStudio drafts
-  only) / on. First 2 weeks after `on`: only clips Dave drags into `<episode>/Clips/Approved`; after that, all
-  except `Clips/Don't post`. Once a clip is booked on all four platforms it moves by itself (with its .txt) into
+  only) / on. No approval step (Dave, 4 November 2026): every clip goes out except those in `Clips/Don't post`
+  (`APPROVAL_DAYS=N` in the env file brings back N days of Approved-only). Once a clip is booked on all four platforms it moves by itself (with its .txt) into
   `Clips/Posted` (Dave, 4 November 2026); the state file, not the folder, is what stops a repeat. ContentStudio's post_type values and timezone are not documented: check with drafts
   first (`POST_TYPES`, `CONTENTSTUDIO_TIMES_IN_UTC`). `--contentstudio-check` lists workspaces and accounts. Each clip is one
   upload to ContentStudio's media library, used for every platform, and deleted from the library 2 days after its post
@@ -51,8 +51,8 @@ The plan is the Claude Doc "Ripple Effect clips: hands-off plan" in the project.
 
 1. Clips and descriptions into Drive only. Nothing is posted. (Built 3 November 2026.)
 2. Posting through ContentStudio's API (`X-API-Key`, docs: https://docs.contentstudio.io/articles/contentstudio-api-f955a6ab),
-   spread out over the week, with an approval step for the first 2 weeks (drag clips from "To approve" to
-   "Approved" in Drive), then hands-off.
+   spread out over the week. Built 3 November 2026; the approval step was dropped on 4 November 2026 (Dave approved
+   all of Ep52 by hand and wants everything from Ep53 on to go out by itself).
 3. Fortnightly PDF report emailed to Dave: views per platform and the clips that worked, fed back into picking.
    ContentStudio's API gives per-post figures for Facebook, Instagram and YouTube; not TikTok.
 4. Possibly: full episodes to Podbean (it has an API). Spotify has no upload API.
@@ -64,8 +64,7 @@ The plan is the Claude Doc "Ripple Effect clips: hands-off plan" in the project.
 - Secrets live only on the droplet: `~/.rippleclips-env` (Anthropic key, later ContentStudio key),
   `~/.rippleclips-google-client.json`, `~/.rippleclips-google-token.json` (all chmod 600). Never commit,
   print or log them. Never ask Dave to paste one into the chat.
-- Nothing is posted publicly without the approval step being in place, and nothing changes the platforms'
-  settings. Claude never invents what was said, never mocks a named person who is not on the show, and
+- Nothing changes the platforms' settings. Claude never invents what was said, never mocks a named person who is not on the show, and
   never jokes at anyone's struggle (the show covers mental health and recovery).
 - The Anthropic key is in its own workspace with a US$10 monthly limit.
 - Dave is not a programmer: plain English, exact commands, say which window (PowerShell, Droplet, Browser),
