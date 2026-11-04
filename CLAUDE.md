@@ -26,7 +26,8 @@ The plan is the Claude Doc "Ripple Effect clips: hands-off plan" in the project.
   (`SLOT_TIMES`, Brisbane) moved by a random 0 to 30 minutes either way, at most 3 days ahead, one post per
   platform with that platform's caption. `POSTING` in the env file: off (default) / draft (ContentStudio drafts
   only) / on. First 2 weeks after `on`: only clips Dave drags into `<episode>/Clips/Approved`; after that, all
-  except `Clips/Don't post`. ContentStudio's post_type values and timezone are not documented: check with drafts
+  except `Clips/Don't post`. Once a clip is booked on all four platforms it moves by itself (with its .txt) into
+  `Clips/Posted` (Dave, 4 November 2026); the state file, not the folder, is what stops a repeat. ContentStudio's post_type values and timezone are not documented: check with drafts
   first (`POST_TYPES`, `CONTENTSTUDIO_TIMES_IN_UTC`). `--contentstudio-check` lists workspaces and accounts. Each clip is one
   upload to ContentStudio's media library, used for every platform, and deleted from the library 2 days after its post
   day (`CS_DELETE_AFTER_DAYS`, `DELETE /media/{id}`), so the 42 GB library (full on 4 November 2026) never fills again.

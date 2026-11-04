@@ -137,6 +137,15 @@ class Drive:
             media_body=media, fields="id, webViewLink", supportsAllDrives=True,
         ).execute()
 
+    def move(self, file_id: str, folder_id: str) -> None:
+        """Move a file into another folder (out of every folder it is in now)."""
+        got = self.svc.files().get(fileId=file_id, fields="parents, name", supportsAllDrives=True).execute()
+        old = [p for p in got.get("parents", []) if p != folder_id]
+        if folder_id in got.get("parents", []) and not old:
+            return
+        self.svc.files().update(fileId=file_id, addParents=folder_id, removeParents=",".join(old),
+                                fields="id", supportsAllDrives=True).execute()
+
     def parent(self, file_id: str) -> str:
         """The folder a file is in."""
         got = self.svc.files().get(fileId=file_id, fields="parents", supportsAllDrives=True).execute()
