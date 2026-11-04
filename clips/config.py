@@ -87,3 +87,6 @@ STATE_FILE = HOME / "rippleclips-state.json"
 LOCK_FILE = HOME / ".rippleclips.lock"
 LOG_FILE = HOME / "rippleclips.log"
 DISK_WARN_PERCENT = 70
+# Instagram collaborators invited on every clip (Dave, 4 November 2026: Marshall). Comma-separated usernames, up to 3.
+INSTAGRAM_COLLABORATORS = [u.strip() if u.strip().startswith("@") else "@" + u.strip()
+                           for u in os.environ.get("INSTAGRAM_COLLABORATORS", "marshallwatego").split(",") if u.strip()][:3]
