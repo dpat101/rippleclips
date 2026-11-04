@@ -81,6 +81,18 @@ class ReleaseTests(unittest.TestCase):
         self.go(s, "draft")
         self.assertEqual(self.fb_make.call_count, 1)
 
+    def test_drafts_published_by_hand_are_not_sent_again(self):
+        from clips.run import drafts_were_published
+        s = state()
+        self.go(s, "draft")  # Ep52-1 drafted for Tuesday 10 November
+        done = drafts_were_published(s, date(2026, 11, 4))
+        self.assertEqual(len(done), 1)
+        http, pb = self.go(s, "on")
+        eps = s["releases"]["episodes"]
+        self.assertEqual(eps["v1"]["day"], "2026-11-04")
+        self.assertEqual(eps["v2"]["day"], "2026-11-10")  # the second video is next Tuesday's
+        self.assertEqual([p[0] for p in pb.published], ["Title 2"])
+
     def test_one_a_week_on_release_day(self):
         s = state()
         http, pb = self.go(s, "on")

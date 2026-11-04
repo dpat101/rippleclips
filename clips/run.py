@@ -4,6 +4,7 @@ the full episode (warm-up cut, sound levelled, intro in front) in a Full episode
     python -m clips.run                 # the normal run (cron)
     python -m clips.run --status        # what has been done
     python -m clips.run --local FILE    # try one video file on the droplet, results in ~/rippleclips-work/local-out
+    python -m clips.run --drafts-were-published   # Dave published the practice drafts by hand: count them as done
 
 Stage 1: nothing is posted anywhere. Clips and descriptions go into "<episode folder>/Clips" in Drive.
 """
@@ -307,11 +308,29 @@ def local(path: str, episode: int) -> None:
     print(f"Clips are in {out}")
 
 
+def drafts_were_published(s: dict, today) -> list[str]:
+    """Dave published the practice drafts himself (4 November 2026). Record them as posted today, so nothing in them
+    goes out a second time and the next clip and the next weekly episode follow on from today."""
+    done = []
+    p = s.setdefault("posting", {"posts": {}})
+    for key, rec in p.pop("drafts", {}).items():
+        rec.update(day=today.isoformat(), mode="published by hand")
+        p.setdefault("posts", {})[key] = rec
+        done.append(f"clip {rec.get('title', key)}")
+    r = s.setdefault("releases", {})
+    for key, rec in r.pop("drafts", {}).items():
+        rec.update(day=today.isoformat(), mode="published by hand")
+        r.setdefault("episodes", {})[key] = rec
+        done.append(f"full episode TRE Ep{rec.get('episode', '?')} {rec.get('title', '')}")
+    return done
+
+
 def main() -> None:
     p = argparse.ArgumentParser()
     p.add_argument("--status", action="store_true")
     p.add_argument("--contentstudio-check", action="store_true")
     p.add_argument("--podbean-check", action="store_true")
+    p.add_argument("--drafts-were-published", action="store_true")
     p.add_argument("--local")
     p.add_argument("--episode", type=int, default=0)
     a = p.parse_args()
@@ -323,6 +342,12 @@ def main() -> None:
         return
     if a.podbean_check:
         release.check()
+        return
+    if a.drafts_were_published:
+        s = st.load()
+        done = drafts_were_published(s, datetime.now(publish.BRISBANE).date())
+        st.save(s)
+        print("\n".join(f"Recorded as published: {d}" for d in done) or "No drafts to record")
         return
     setup_logging()
     config.WORK_DIR.mkdir(parents=True, exist_ok=True)
