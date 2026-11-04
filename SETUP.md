@@ -151,7 +151,7 @@ Then, in the same settings file:
   that every clip is, unless you drag it into `Clips/Don't post`.
 - Each clip is uploaded to ContentStudio's media library once, used for every platform, and deleted from the library
   2 days after its post day, so the storage doesn't fill up again. `CONTENTSTUDIO_VIDEO=link` sends a Drive link instead.
-- Full episodes: one a week (Tuesday about 7pm Brisbane, `RELEASE_DAY` / `RELEASE_TIME`) to YouTube and Facebook
+- Full episodes: one a week (Tuesday about 9am Brisbane, `RELEASE_DAY` / `RELEASE_TIME`) to YouTube and Facebook
   through ContentStudio, and as an MP3 to Podbean. Podbean needs `PODBEAN_CLIENT_ID` and `PODBEAN_CLIENT_SECRET`
   (from developers.podbean.com, "Register a new app"); check with `--podbean-check`. `RELEASES=0` stops full
   episodes only. Never switch on Spotify in Podbean: Dave uploads the video to his own Spotify show by hand.
