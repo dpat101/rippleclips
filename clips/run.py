@@ -281,7 +281,7 @@ def status() -> None:
         print("Nothing processed yet.")
     print(f"Posting: {publish.posting_mode()}")
     p = s.get("posting", {})
-    if p.get("approval_until"):
+    if p.get("approval_until") and config.APPROVAL_DAYS > 0:
         print(f"Only clips in Approved are posted until {p['approval_until']}")
     for key in ("posts", "drafts"):
         for rec in sorted(p.get(key, {}).values(), key=lambda r: (r.get("day", ""), r.get("slot", 1))):

@@ -147,8 +147,8 @@ Then, in the same settings file:
 - `POSTING=draft` makes posts as **drafts** in ContentStudio only, for checking. Nothing is published.
 - `POSTING=on` posts for real: two clips a day, handed to ContentStudio up to 3 days ahead. Each platform has its
   own times (Brisbane): Facebook 8am and 12pm, YouTube 11am and 4pm, Instagram 7am and 6pm, TikTok 1pm and 8pm,
-  each moved by a random number of minutes up to half an hour either way (`SLOT_TIMES` in `clips/config.py`). For the first 2 weeks only clips you drag into `Clips/Approved` in an episode folder are posted; after
-  that every clip is, unless you drag it into `Clips/Don't post`.
+  each moved by a random number of minutes up to half an hour either way (`SLOT_TIMES` in `clips/config.py`). Every clip is posted, unless you drag it into
+  `Clips/Don't post` before it is handed over (no approval step, Dave, 4 November 2026).
 - Each clip is uploaded to ContentStudio's media library once, used for every platform, and deleted from the library
   2 days after its post day, so the storage doesn't fill up again. `CONTENTSTUDIO_VIDEO=link` sends a Drive link instead.
 - Full episodes: one a week (Tuesday about 9am Brisbane, `RELEASE_DAY` / `RELEASE_TIME`) to YouTube and Facebook
