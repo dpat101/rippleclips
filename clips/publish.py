@@ -235,7 +235,10 @@ def candidates(s: dict) -> list[dict]:
     return sorted(out, key=lambda c: (c["episode"], c["number"]))
 
 
-def run(drive, s: dict, cs: ContentStudio | None = None, today: date | None = None, rng=random) -> None:
+def run(drive, s: dict, cs: ContentStudio | None = None, today: date | None = None, rng=random,
+        test_after: str | None = None) -> None:
+    """test_after "13:00": a one-off test (Dave, 4 November 2026): only the next clip, today, each platform at a
+    random time in the hour after test_after. It counts as that clip's post; tomorrow's slots carry on as normal."""
     mode = posting_mode()
     if mode == "off":
         return
@@ -267,6 +270,15 @@ def run(drive, s: dict, cs: ContentStudio | None = None, today: date | None = No
         if rec and all(rec.get("ids", {}).get(pl) for pl in PLATFORMS):
             continue  # handed over already
         if key in skipped or (approval and key not in approved):
+            continue
+        if test_after and not rec:
+            hh, mm = (int(x) for x in test_after.split(":"))
+            day, slot = today, 0
+            rec = posts.setdefault(key, {"day": day.isoformat(), "slot": 0, "title": clip["title"],
+                                         "episode": clip["episode"], "mode": mode, "ids": {}, "errors": {}})
+            mins = {pl: min(23 * 60 + 59, hh * 60 + mm + rng.randint(0, 59)) for pl in PLATFORMS}
+            rec["times"] = {pl: f"{m // 60:02d}:{m % 60:02d}" for pl, m in mins.items()}
+        elif test_after:
             continue
         if rec.get("day"):
             day, slot = date.fromisoformat(rec["day"]), int(rec.get("slot", 1))
@@ -301,6 +313,8 @@ def run(drive, s: dict, cs: ContentStudio | None = None, today: date | None = No
         finally:
             if video:
                 video.unlink(missing_ok=True)
+        if test_after:
+            break  # the test is one clip
     clean_media(s, cs, today)
 
 

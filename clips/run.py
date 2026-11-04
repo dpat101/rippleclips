@@ -5,6 +5,7 @@ the full episode (warm-up cut, sound levelled, intro in front) in a Full episode
     python -m clips.run --status        # what has been done
     python -m clips.run --local FILE    # try one video file on the droplet, results in ~/rippleclips-work/local-out
     python -m clips.run --drafts-were-published   # Dave published the practice drafts by hand: count them as done
+    python -m clips.run --test-post-after 13:00   # one-off: post the next approved clip today, in the hour after 1pm
 
 Stage 1: nothing is posted anywhere. Clips and descriptions go into "<episode folder>/Clips" in Drive.
 """
@@ -331,6 +332,7 @@ def main() -> None:
     p.add_argument("--contentstudio-check", action="store_true")
     p.add_argument("--podbean-check", action="store_true")
     p.add_argument("--drafts-were-published", action="store_true")
+    p.add_argument("--test-post-after", help="HH:MM: post the next clip today, in the hour after this time")
     p.add_argument("--local")
     p.add_argument("--episode", type=int, default=0)
     a = p.parse_args()
@@ -348,6 +350,14 @@ def main() -> None:
         done = drafts_were_published(s, datetime.now(publish.BRISBANE).date())
         st.save(s)
         print("\n".join(f"Recorded as published: {d}" for d in done) or "No drafts to record")
+        return
+    if a.test_post_after:
+        setup_logging()
+        s = st.load()
+        try:
+            publish.run(Drive(), s, test_after=a.test_post_after)
+        finally:
+            st.save(s)
         return
     setup_logging()
     config.WORK_DIR.mkdir(parents=True, exist_ok=True)

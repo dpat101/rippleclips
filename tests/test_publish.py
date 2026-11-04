@@ -175,6 +175,21 @@ class PublishTests(unittest.TestCase):
         sent = [kw["json"] for m, u, kw in http.calls if u.endswith("/posts")]
         self.assertEqual(sent[0]["content"]["media"], {"video": "https://drive/c1"})
 
+    def test_one_off_test_post_today(self):
+        s = state()
+        os.environ["POSTING"] = "on"
+        http = FakeHTTP()
+        publish.run(FakeDrive(approved={"c1", "c2"}), s, publish.ContentStudio("k", http), date(2026, 11, 4),
+                    rng=random.Random(1), test_after="13:00")
+        posts = s["posting"]["posts"]
+        self.assertEqual(list(posts), ["c1"])  # one clip only
+        self.assertEqual(posts["c1"]["day"], "2026-11-04")
+        self.assertTrue(all("13:00" <= t <= "13:59" for t in posts["c1"]["times"].values()))
+        # The normal run carries on from tomorrow with the next clip.
+        publish.run(FakeDrive(approved={"c1", "c2"}), s, publish.ContentStudio("k", FakeHTTP()), date(2026, 11, 4),
+                    rng=random.Random(1))
+        self.assertEqual(posts["c2"]["day"], "2026-11-05")
+
     def test_platform_settings(self):
         http = self.run_once(state(), "draft", FakeDrive(approved={"c1"}))
         sent = {kw["json"]["accounts"][0]: kw["json"] for m, u, kw in http.calls if u.endswith("/posts")}
