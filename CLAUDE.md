@@ -38,7 +38,7 @@ The plan is the Claude Doc "Ripple Effect clips: hands-off plan" in the project.
   YouTube's title goes in `youtube_options.title` (100 characters at most); the API spec is
   https://api-prod.contentstudio.io/api-docs.json.
 - **Full episodes go out by themselves** (Dave, 4 November 2026; `clips/release.py`): one a week, oldest first, on
-  `RELEASE_DAY` at `RELEASE_TIME` (Tuesday 7pm Brisbane) moved by up to 30 minutes, no approval. YouTube and Facebook
+  `RELEASE_DAY` at `RELEASE_TIME` (Tuesday 9am Brisbane, the same time as Dave's Spotify upload) moved by up to 30 minutes, no approval. YouTube and Facebook
   get the video through ContentStudio (Facebook full videos are monetised. ContentStudio's only Facebook post type for them, `feed`, stops at 20 minutes, so a longer episode gets a Facebook version: Claude picks the least important stretches to take out, never the first or last 90 seconds, `clips/facebook.py`, Dave's choice 4 November 2026; it is saved in `Full episode` as "... - Facebook (under 20 min).mp4"); Podbean gets an MP3 through its API
   (`PODBEAN_CLIENT_ID` / `PODBEAN_CLIENT_SECRET`, client credentials) and passes it to Apple and the other apps.
   Spotify stays Dave's manual video upload: Podbean only sends audio to Spotify, and he has his own Spotify show, so
