@@ -106,9 +106,11 @@ def make_clips(video: Path, episode: int, work: Path, first_number: int = 1, cac
     for i, clip in enumerate(clips):
         number = first_number + i
         base = f"{number:02d} - {safe_name(clip.title)}"
+        # The captions file has a plain name: ffmpeg's filter cannot open a path with an apostrophe in it
+        # ("Everyone's A Cop With A Phone", 10 November 2026).
         out = work / f"{base}.mp4"
         layout = cut_clip(video, info, clip.start, clip.end,
-                          lambda margin: write_ass(words, clip.start, clip.end, work / f"{base}.ass", margin), out)
+                          lambda margin: write_ass(words, clip.start, clip.end, work / f"{number:02d}.ass", margin), out)
         txt = work / f"{base}.txt"
         txt.write_text(description_text(clip, number, episode, video.name), encoding="utf-8")
         done.append({

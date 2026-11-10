@@ -93,6 +93,29 @@ class PublishTests(unittest.TestCase):
         publish.run(drive, s, publish.ContentStudio("k", http), today, rng=random.Random(7))
         return http
 
+    def test_rate_limit_is_waited_out(self):
+        class Busy(FakeHTTP):
+            def __init__(self, busy):
+                super().__init__()
+                self.busy = busy
+
+            def request(self, method, url, headers=None, **kw):
+                if self.busy:
+                    self.busy -= 1
+                    self.calls.append((method, url, kw))
+                    return FakeResp({"message": "Too Many Requests"}, 429)
+                return super().request(method, url, headers, **kw)
+
+        cs = publish.ContentStudio("k", Busy(2))
+        waits = []
+        cs.sleep = waits.append
+        self.assertEqual(len(cs.accounts()), 4)
+        self.assertEqual(waits, [30.0, 60.0])
+        cs = publish.ContentStudio("k", Busy(10))
+        cs.sleep = lambda s: None
+        with self.assertRaises(publish.CSError):
+            cs.accounts()
+
     def test_off_sends_nothing(self):
         s = state()
         os.environ["POSTING"] = "off"

@@ -23,7 +23,7 @@ The plan is the Claude Doc "Ripple Effect clips: hands-off plan" in the project.
 - Transcripts are kept in `~/rippleclips-work/transcripts/` so a video is never transcribed twice.
 - **Posting** (stage 2, built 3 November 2026; `clips/publish.py`, SETUP.md step 9): after each run, clips from
   TRE Ep52 on are handed to ContentStudio, two a day (Dave, 4 November 2026), each platform at its own time
-  (`SLOT_TIMES`, Brisbane) moved by a random 0 to 30 minutes either way, at most 3 days ahead, one post per
+  (`SLOT_TIMES`, Brisbane) moved by a random 0 to 30 minutes either way (ContentStudio calls are spaced 2 s apart and a 429 rate limit is waited out and retried, 10 November 2026), at most 3 days ahead, one post per
   platform with that platform's caption. `POSTING` in the env file: off (default) / draft (ContentStudio drafts
   only) / on. No approval step (Dave, 4 November 2026): every clip goes out except those in `Clips/Don't post`
   (`APPROVAL_DAYS=N` in the env file brings back N days of Approved-only). Once a clip is booked on all four platforms it moves by itself (with its .txt) into
