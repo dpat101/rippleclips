@@ -19,6 +19,7 @@ from __future__ import annotations
 import logging
 import os
 import random
+import time
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from zoneinfo import ZoneInfo
@@ -37,6 +38,9 @@ BRISBANE = ZoneInfo("Australia/Brisbane")
 POST_TYPES = {"instagram": "reel", "facebook": "reel", "youtube": "shorts", "tiktok": "feed"}
 
 
+RATE_LIMIT_TRIES = 5  # a 429 is tried again after 30, 60, 120 and 240 s
+
+
 class CSError(RuntimeError):
     pass
 
@@ -46,14 +50,34 @@ class ContentStudio:
         self.key = key or os.environ.get("CONTENTSTUDIO_API_KEY", "")
         if not self.key:
             raise CSError("No CONTENTSTUDIO_API_KEY in ~/.rippleclips-env")
+        # ContentStudio answers "429 Too Many Requests" to bursts (found 10 November 2026), so real calls are spaced
+        # out and a 429 is waited out and tried again.
+        self.pace = 0.0 if http is not None else 2.0
         if http is None:
             import httpx
             http = httpx.Client(timeout=600)
         self.http = http
+        self.sleep = time.sleep
+        self._last = 0.0
         self._ws = os.environ.get("CONTENTSTUDIO_WORKSPACE_ID", "")
 
     def _call(self, method: str, path: str, **kw) -> dict:
-        r = self.http.request(method, API + path, headers={"X-API-Key": self.key, "Accept": "application/json"}, **kw)
+        for attempt in range(RATE_LIMIT_TRIES):
+            wait = self.pace - (time.monotonic() - self._last)
+            if wait > 0:
+                self.sleep(wait)
+            r = self.http.request(method, API + path, headers={"X-API-Key": self.key, "Accept": "application/json"},
+                                  **kw)
+            self._last = time.monotonic()
+            if r.status_code != 429 or attempt == RATE_LIMIT_TRIES - 1:
+                break
+            try:
+                after = float(getattr(r, "headers", {}).get("Retry-After", 0))
+            except (TypeError, ValueError):
+                after = 0
+            delay = min(300.0, max(after, 30.0 * 2 ** attempt))
+            log.warning("ContentStudio rate limit on %s %s; waiting %.0f s", method, path.split("?")[0], delay)
+            self.sleep(delay)
         try:
             body = r.json()
         except ValueError:
