@@ -11,7 +11,7 @@ The plan is the Claude Doc "Ripple Effect clips: hands-off plan" in the project.
   subfolder can hold several short videos recorded the same day. Dave owns the folder.
 - `clips/run.py` runs once a day from cron, at 3am Brisbane (17:00 UTC; Dave, 3 November 2026: new episodes come every few days) on the droplet `rippleclips` (134.199.155.143, user `clips`). For each
   new video in a settled episode folder (nothing changed for 2 hours): download → transcribe on the droplet
-  (`faster-whisper`, free) → Claude (`claude-opus-5-5`) picks the funny moments and writes descriptions for each
+  (`faster-whisper`, free) → Claude (`claude-opus-5-5`) picks the funny moments (at most about one per 3.5 minutes of video, 8 to 15, `max_clips()`; Dave, 12 November 2026) and writes descriptions for each
   platform (`clips/pick.py`, style in `style/examples.md`) → ffmpeg cuts 1080x1920 with face-based framing
   (one person cropped, or two people stacked) and burnt-in word-by-word captions (`clips/cut.py`,
   `clips/captions.py`) → uploads to `<episode>/Clips` in Drive → deletes local copies.
