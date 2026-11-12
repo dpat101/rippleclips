@@ -308,3 +308,11 @@ class CutTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class CapTests(unittest.TestCase):
+    def test_cap_grows_with_length(self):
+        from clips.pick import max_clips
+        self.assertEqual(max_clips(10 * 60), 8)    # short videos keep the old 8
+        self.assertEqual(max_clips(45 * 60), 13)   # a 45-minute episode
+        self.assertEqual(max_clips(120 * 60), 15)  # never more than 15

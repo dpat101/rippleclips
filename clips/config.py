@@ -42,7 +42,12 @@ STYLE_FILE = Path(__file__).resolve().parent.parent / "style" / "examples.md"
 CLIP_MIX = os.environ.get("CLIP_MIX", "funny_and_powerful")
 MIN_CLIP_SECONDS = 12.0
 MAX_CLIP_SECONDS = 90.0
-MAX_CLIPS_PER_VIDEO = 8
+# How many clips a video may give (Dave, 12 November 2026: a 45-minute episode hit the old flat cap of 8): about one
+# per MINUTES_PER_CLIP minutes of video, never fewer than MIN_CAP or more than MAX_CLIPS_PER_VIDEO. Claude still
+# picks only the moments good enough, so this is a ceiling, not a target.
+MINUTES_PER_CLIP = 3.5
+MIN_CAP = 8
+MAX_CLIPS_PER_VIDEO = 15
 OUT_WIDTH, OUT_HEIGHT = 1080, 1920
 
 # Full episodes (Dave, 3 Nov 2026): each video also becomes a finished episode for Spotify and YouTube, with
