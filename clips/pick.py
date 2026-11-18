@@ -137,8 +137,14 @@ def call_tool(system: str, prompt: str, tool: dict, client=None, max_tokens: int
     raise RuntimeError(f"Claude did not call {tool['name']}")
 
 
-def ask_claude(words: list[Word], video_name: str, episode: int, client=None) -> tuple[list[dict], dict]:
-    system = SYSTEM.format(what_to_pick=WHAT_TO_PICK[config.CLIP_MIX], max_clips=config.MAX_CLIPS_PER_VIDEO,
+def max_clips(duration: float) -> int:
+    """The most clips a video of this length may give: about one per MINUTES_PER_CLIP minutes."""
+    return max(config.MIN_CAP, min(config.MAX_CLIPS_PER_VIDEO, round(duration / 60 / config.MINUTES_PER_CLIP)))
+
+
+def ask_claude(words: list[Word], video_name: str, episode: int, client=None, cap: int | None = None) -> tuple[list[dict], dict]:
+    cap = cap or config.MAX_CLIPS_PER_VIDEO
+    system = SYSTEM.format(what_to_pick=WHAT_TO_PICK[config.CLIP_MIX], max_clips=cap,
                            min_s=config.MIN_CLIP_SECONDS, max_s=config.MAX_CLIP_SECONDS)
     answer, usage = call_tool(system, build_prompt(words, video_name, episode), TOOL, client)
     return list(answer.get("clips", [])), usage
@@ -182,7 +188,7 @@ def clean(raw: list[dict], words: list[Word], duration: float) -> list[Clip]:
             continue
         text = {k: str(c.get(k, "")).strip() for k in ("instagram", "facebook", "youtube_title", "youtube_description", "tiktok")}
         out.append(Clip(s, e, str(c.get("title", "clip")).strip(), str(c.get("why_funny", "")).strip(), text))
-        if len(out) >= config.MAX_CLIPS_PER_VIDEO:
+        if len(out) >= max_clips(duration):
             break
     return sorted(out, key=lambda c: c.start)
 
@@ -190,6 +196,6 @@ def clean(raw: list[dict], words: list[Word], duration: float) -> list[Clip]:
 def pick_clips(words: list[Word], video_name: str, episode: int, duration: float, client=None) -> tuple[list[Clip], dict]:
     if len(words) < 20:
         return [], {}
-    raw, usage = ask_claude(words, video_name, episode, client)
+    raw, usage = ask_claude(words, video_name, episode, client, max_clips(duration))
     log.info("Claude proposed %d clips (%s)", len(raw), json.dumps(usage))
     return clean(raw, words, duration), usage
